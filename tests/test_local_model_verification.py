@@ -1,10 +1,27 @@
 import json
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+
+def _install_import_stubs() -> None:
+    """Provide minimal stubs so this focused test does not require the RAG runtime stack."""
+    if "rank_bm25" not in sys.modules:
+        rank_bm25 = types.ModuleType("rank_bm25")
+        rank_bm25.BM25Okapi = type("BM25Okapi", (), {})
+        sys.modules["rank_bm25"] = rank_bm25
+
+    if "numpy" not in sys.modules:
+        numpy = types.ModuleType("numpy")
+        numpy.argsort = lambda values: []
+        sys.modules["numpy"] = numpy
+
+
+_install_import_stubs()
 
 from src.rag_pipelines import naive_rag
 
