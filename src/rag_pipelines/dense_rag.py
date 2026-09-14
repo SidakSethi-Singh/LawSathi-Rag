@@ -58,9 +58,12 @@ class DenseRAG(NaiveRAG):
         if not self.chunks:
             logger.warning("Empty dense index. Returning zero results.")
             return []
+        if k <= 0:
+            return []
         try:
             q_emb = self.encoder.encode([query]).tolist()
-            results = self.collection.query(query_embeddings=q_emb, n_results=k)
+            n_results = min(k, len(self.chunks))
+            results = self.collection.query(query_embeddings=q_emb, n_results=n_results)
             if results and "documents" in results and results["documents"]:
                 return results["documents"][0]
         except Exception as e:
