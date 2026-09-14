@@ -1,6 +1,6 @@
 import importlib
-import io
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -16,26 +16,19 @@ helpers = importlib.import_module("src.utils.helpers")
 
 class TestSaveJsonl(unittest.TestCase):
     def test_successful_write_preserves_jsonl_output(self):
-        file_path = Path("output.jsonl")
         data = [
             {"question": "What is a contract?", "answer": "An agreement."},
             {"question": "Who is a party?", "answer": "A participant."},
         ]
-        temp_file = io.StringIO()
-        temp_file.name = "temporary-output.jsonl"
-
-        with patch.object(helpers.Path, "mkdir"), patch.object(
-            helpers.tempfile, "NamedTemporaryFile"
-        ) as temp_file_factory, patch.object(helpers.os, "replace") as replace:
-            temp_file_factory.return_value.__enter__.return_value = temp_file
-            helpers.save_jsonl(file_path, data)
-
         expected = (
             '{"question": "What is a contract?", "answer": "An agreement."}\n'
             '{"question": "Who is a party?", "answer": "A participant."}\n'
         )
-        self.assertEqual(temp_file.getvalue(), expected)
-        replace.assert_called_once_with(Path("temporary-output.jsonl"), file_path)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "output.jsonl"
+            helpers.save_jsonl(file_path, data)
+            self.assertEqual(file_path.read_text(encoding="utf-8"), expected)
 
     def test_write_failure_is_propagated(self):
         file_path = Path("output.jsonl")
