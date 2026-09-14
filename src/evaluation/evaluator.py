@@ -3,8 +3,10 @@ import re
 import sys
 import json
 import logging
+import time
 from pathlib import Path
 from typing import List, Dict, Tuple
+from openai import OpenAI
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -56,6 +58,16 @@ def compute_f1(pred: str, gt: str) -> float:
     recall = len(common) / len(g_tokens)
     return 2.0 * precision * recall / (precision + recall)
 
+class RateLimitedClient(OpenAI):
+    """Subclass of OpenAI client to enforce rate limits (e.g., < 40 RPM)."""
+    def __init__(self, *args, delay=1.5, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.delay = delay
+
+    def _request(self, *args, **kwargs):
+        time.sleep(self.delay)
+        return super()._request(*args, **kwargs)
+
 def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
     """Compute custom metrics (EM, Token F1, Precision@5, Recall@5, and Avg Latency)."""
     em_scores, f1_scores, p5_scores, r5_scores, latencies = [], [], [], [], []
@@ -84,11 +96,38 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
     }
 
 def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
-    """Evaluate using RAGAS framework if possible, falling back to empty dict on failure."""
+    """Evaluate using RAGAS framework if possible, falling back to missing values on failure."""
     try:
+        # Mock broken VertexAI import before importing ragas to prevent ModuleNotFoundError
+        import sys
+        from unittest.mock import MagicMock
+        sys.modules["langchain_community.chat_models.vertexai"] = MagicMock()
+
         from datasets import Dataset
+
+
         from ragas import evaluate
-        from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+        from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+        from ragas.llms import LangchainLLMWrapper
+        from ragas.embeddings import LangchainEmbeddingsWrapper
+        from openai import OpenAI
+
+        # Instantiate LLM and Embeddings using factories for ragas 0.3.x
+        rate_limited_client = RateLimitedClient(
+            api_key=config.OPENAI_API_KEY,
+            base_url=config.API_BASE_URL,
+            delay=1.5
+        )
+
+        from ragas.llms import llm_factory
+        from ragas.embeddings import embedding_factory
+
+        llm = llm_factory(config.MODEL_NAME, client=rate_limited_client)
+        embeddings = embedding_factory("openai", model=config.MODEL_NAME, client=rate_limited_client)
+
+
+
         pred_map = {p["question"]: p for p in predictions}
         aligned_q = [g["question"] for g in ground_truth if g["question"] in pred_map]
         data = {
@@ -98,12 +137,39 @@ def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[st
             "ground_truth": [g["answer"] for g in ground_truth if g["question"] in pred_map]
         }
         dataset = Dataset.from_dict(data)
-        metrics = [faithfulness, answer_relevancy, context_precision, context_recall]
-        res = evaluate(dataset, metrics=metrics)
-        return {k: float(v) for k, v in res.items()}
-    except Exception as e:
-        logger.warning(f"RAGAS evaluation failed or skipped: {e}")
-        return {}
+
+        # Instantiate metrics without passing llm/embeddings (handled by evaluate())
+        metrics = [
+            Faithfulness(),
+            AnswerRelevancy(),
+            ContextPrecision(),
+            ContextRecall()
+        ]
+        print(f"Metrics initialized: {[type(m) for m in metrics]}")
+
+        res = evaluate(dataset, metrics=metrics, llm=llm, embeddings=embeddings)
+
+        # Convert EvaluationResult to pandas then extract the mean for each metric
+        res_df = res.to_pandas()
+        metric_cols = [m.name for m in metrics]
+        scores = res_df[metric_cols].mean().to_dict()
+
+        # Map ragas keys to human-readable names for the comparison table
+        mapping = {
+            "faithfulness": "Faithfulness",
+            "answer_relevancy": "Answer Relevancy",
+            "context_precision": "Context Precision",
+            "context_recall": "Context Recall"
+        }
+        return {mapping.get(k, k): float(v) for k, v in scores.items()}
+    except Exception:
+        logger.exception("RAGAS evaluation failed or skipped")
+        return {
+            "Faithfulness": None,
+            "Answer Relevancy": None,
+            "Context Precision": None,
+            "Context Recall": None
+        }
 
 def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path: Path) -> pd.DataFrame:
     """Build and save architecture comparison table rounded to 3 decimal places."""
