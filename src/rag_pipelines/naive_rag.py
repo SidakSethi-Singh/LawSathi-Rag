@@ -96,16 +96,30 @@ class NaiveRAG:
                 raise
 
     def answer(self, query: str, k: int = 5) -> Dict:
-        """Perform retrieval and generation, tracking execution latency."""
+        """
+        Perform retrieval and generation, tracking component-level and total end-to-end execution latency.
+        """
+        t_start = time.perf_counter()
+        
+        # 1. Measure Retrieval Latency
+        t_retrieval_start = time.perf_counter()
         contexts = self.retrieve(query, k=k)
-        start = time.perf_counter()
+        retrieval_ms = (time.perf_counter() - t_retrieval_start) * 1000.0
+
+        # 2. Measure Generation Latency
+        t_gen_start = time.perf_counter()
         predicted = self.generate(query, contexts)
-        latency_ms = (time.perf_counter() - start) * 1000
+        gen_ms = (time.perf_counter() - t_gen_start) * 1000.0
+
+        total_latency_ms = (time.perf_counter() - t_start) * 1000.0
+
         return {
             "question": query,
             "predicted_answer": predicted,
             "retrieved_chunks": contexts,
-            "latency_ms": round(latency_ms, 2),
+            "latency_ms": round(total_latency_ms, 2),
+            "retrieval_latency_ms": round(retrieval_ms, 2),
+            "generation_latency_ms": round(gen_ms, 2),
             "model_used": self.model_name
         }
 
