@@ -4,13 +4,13 @@ import json
 import requests
 from pathlib import Path
 from typing import Any, Callable
-from openai import OpenAI
 from .config import OPENAI_API_KEY, USE_LOCAL_MODEL, API_BASE_URL
 
 logger = logging.getLogger(__name__)
 
 def call_openai_api(prompt: str, system_prompt: str) -> str:
     """Call the OpenAI API for chat completion."""
+    from openai import OpenAI
     client = OpenAI(api_key=OPENAI_API_KEY)
     response = client.chat.completions.create(
         model="gpt-4o-mini",
