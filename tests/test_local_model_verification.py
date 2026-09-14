@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def _install_import_stubs() -> None:
-    """Provide minimal stubs so this focused test does not require the RAG runtime stack."""
     if "rank_bm25" not in sys.modules:
         rank_bm25 = types.ModuleType("rank_bm25")
         rank_bm25.BM25Okapi = type("BM25Okapi", (), {})
@@ -19,6 +18,16 @@ def _install_import_stubs() -> None:
         numpy = types.ModuleType("numpy")
         numpy.argsort = lambda values: []
         sys.modules["numpy"] = numpy
+
+    if "openai" not in sys.modules:
+        openai = types.ModuleType("openai")
+        openai.OpenAI = type("OpenAI", (), {})
+        sys.modules["openai"] = openai
+
+    if "dotenv" not in sys.modules:
+        dotenv = types.ModuleType("dotenv")
+        dotenv.load_dotenv = lambda **kwargs: None
+        sys.modules["dotenv"] = dotenv
 
 
 _install_import_stubs()
