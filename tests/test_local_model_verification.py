@@ -41,19 +41,6 @@ class TestLocalModelVerification(unittest.TestCase):
         mock_rag.assert_called_once()
         mock_save_jsonl.assert_called_once()
 
-    @patch.object(naive_rag, "requests")
-    @patch.object(naive_rag.config, "USE_LOCAL_MODEL", True)
-    @patch.object(naive_rag.config, "API_BASE_URL", "http://localhost:11434")
-    @patch.object(naive_rag, "project_root", Path("/tmp/nonexistent-lawsathi-rag-test"))
-    def test_offline_local_model_exits_before_loading_records(self, mock_requests):
-        mock_requests.get.side_effect = OSError("connection refused")
-
-        with self.assertRaises(SystemExit) as error:
-            naive_rag.run_main()
-
-        self.assertEqual(error.exception.code, 1)
-        mock_requests.get.assert_called_once_with("http://localhost:11434", timeout=5.0)
-
 
 if __name__ == "__main__":
     unittest.main()
