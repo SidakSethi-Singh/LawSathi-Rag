@@ -70,21 +70,35 @@ def load_raw_data(file_path: Path) -> list[dict]:
     return []
 
 def extract_qa_fields(record: dict) -> tuple[str, str, str]:
-    """Extract question, answer, and context using candidate keys in priority order."""
+    """Extract question, answer, and substantive context using known schema keys."""
     keys_sets = [
         ("question", "answer", "context"),
         ("query", "response", "passage"),
         ("Question", "Answer", "Context"),
         ("text", "summary", "content"),
-        # Fallbacks for datasets missing an explicit context field
-        ("question", "answer", "case_name"),
-        ("question", "answer", "answer")
+        ("question", "answer", "judgment"),
+        ("question", "answer", "judgment_text"),
+        ("question", "answer", "judgement"),
+        ("question", "answer", "judgement_text"),
+        ("question", "answer", "content"),
     ]
     for q_key, a_key, c_key in keys_sets:
         if q_key in record and a_key in record and c_key in record:
-            return record[q_key], record[a_key], record[c_key]
-    logger.error(f"Keys mismatch. Available keys: {list(record.keys())}")
-    raise ValueError(f"Could not map record keys to any known QA schema.")
+            context = record[c_key]
+            if isinstance(context, str) and context.strip():
+                return record[q_key], record[a_key], context
+
+    # A case title or the answer itself is not document evidence. Falling back to
+    # either silently produces a benchmark whose retrieval corpus contains no
+    # substantive judgment text, so fail the record instead of corrupting it.
+    misleading_fallbacks = [key for key in ("case_name", "answer") if key in record]
+    logger.error(
+        "Could not map record to a substantive QA context. Available keys: %s; "
+        "rejected fallback keys: %s",
+        list(record.keys()),
+        misleading_fallbacks,
+    )
+    raise ValueError("Could not map record keys to a substantive QA context schema.")
 
 def process_record(record: dict, idx: int) -> dict:
     """Clean and chunk a single record, returning structured dict or None if invalid."""
