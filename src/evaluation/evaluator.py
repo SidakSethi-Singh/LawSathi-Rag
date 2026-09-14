@@ -71,8 +71,9 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
         em_scores.append(compute_em(pred_ans, gt_ans))
         f1_scores.append(compute_f1(pred_ans, gt_ans))
         rel = sum(1 for c in chunks[:5] if check_chunk_relevance(c, gt_ans))
+        total_relevant = sum(1 for c in chunks if check_chunk_relevance(c, gt_ans))
         p5_scores.append(rel / 5.0)
-        r5_scores.append(rel / 5.0)
+        r5_scores.append(rel / total_relevant if total_relevant > 0 else 0.0)
         latencies.append(p.get("latency_ms", 0.0))
     n = len(em_scores) or 1
     return {
