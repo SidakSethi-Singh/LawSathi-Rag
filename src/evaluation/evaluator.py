@@ -56,6 +56,21 @@ def compute_f1(pred: str, gt: str) -> float:
     recall = len(common) / len(g_tokens)
     return 2.0 * precision * recall / (precision + recall)
 
+def compute_recall_at_k(retrieved_chunks: List[str], relevant_chunks: List[str], gt_answer: str, k: int = 5) -> float:
+    """Compute retrieval recall@k using the relevant chunks available in the ground-truth record."""
+    relevant_reference = {
+        chunk for chunk in relevant_chunks
+        if check_chunk_relevance(chunk, gt_answer)
+    }
+    if not relevant_reference:
+        return 0.0
+
+    retrieved_relevant = sum(
+        1 for chunk in retrieved_chunks[:k]
+        if chunk in relevant_reference
+    )
+    return min(retrieved_relevant / len(relevant_reference), 1.0)
+
 def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
     """Compute custom metrics (EM, Token F1, Precision@5, Recall@5, and Avg Latency)."""
     em_scores, f1_scores, p5_scores, r5_scores, latencies = [], [], [], [], []
@@ -72,7 +87,14 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
         f1_scores.append(compute_f1(pred_ans, gt_ans))
         rel = sum(1 for c in chunks[:5] if check_chunk_relevance(c, gt_ans))
         p5_scores.append(rel / 5.0)
-        r5_scores.append(rel / 5.0)
+        r5_scores.append(
+            compute_recall_at_k(
+                chunks,
+                gt.get("context_chunks", []),
+                gt_ans,
+                k=5,
+            )
+        )
         latencies.append(p.get("latency_ms", 0.0))
     n = len(em_scores) or 1
     return {
