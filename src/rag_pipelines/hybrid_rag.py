@@ -54,19 +54,17 @@ class HybridRAG(NaiveRAG):
 
     def index_documents(self, chunks: List[str]) -> None:
         """Index chunks in both BM25 and ChromaDB vector collection."""
+        tokenized_chunks = [chunk.split() for chunk in chunks]
+        bm25_index = BM25Okapi(tokenized_chunks)
+        embeddings = self.encoder.encode(chunks, show_progress_bar=True)
+        chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
+        self.collection.add(
+            ids=chunk_ids,
+            documents=chunks,
+            embeddings=embeddings.tolist()
+        )
+        self.bm25 = bm25_index
         self.chunks = chunks
-        try:
-            tokenized_chunks = [chunk.split() for chunk in chunks]
-            self.bm25 = BM25Okapi(tokenized_chunks)
-            embeddings = self.encoder.encode(chunks, show_progress_bar=True)
-            chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
-            self.collection.add(
-                ids=chunk_ids,
-                documents=chunks,
-                embeddings=embeddings.tolist()
-            )
-        except Exception as e:
-            logger.error(f"Failed to build hybrid index: {e}")
 
     def _retrieve_bm25(self, query: str, limit: int) -> Dict[str, float]:
         """Get top lexical matching scores."""
