@@ -49,9 +49,8 @@ class TestLocalModelVerification(unittest.TestCase):
             json.dumps({"question": "q1", "context_chunks": []}),
             json.dumps({"question": "q2", "context_chunks": []}),
         ]
-        mock_open.return_value.__enter__.return_value = iter(
-            [record + "\n" for record in records]
-        )
+        mock_file = mock_open.return_value.__enter__.return_value
+        mock_file.readline.side_effect = [records[0] + "\n", records[1] + "\n", ""]
         mock_requests.get.return_value = MagicMock()
         mock_rag.return_value.answer.return_value = {
             "question": "q",
