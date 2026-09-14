@@ -13,7 +13,11 @@ chunker_stub = types.ModuleType("src.preprocessing.chunker")
 chunker_stub.chunk_documents = None
 sys.modules["src.preprocessing.chunker"] = chunker_stub
 
-ablation = None
+hybrid_stub = types.ModuleType("src.rag_pipelines.hybrid_rag")
+class HybridRAGStub:
+    pass
+hybrid_stub.HybridRAG = HybridRAGStub
+sys.modules["src.rag_pipelines.hybrid_rag"] = hybrid_stub
 
 
 class TestAblationDocumentBoundaries(unittest.TestCase):
