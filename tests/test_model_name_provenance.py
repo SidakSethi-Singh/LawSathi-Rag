@@ -5,6 +5,10 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 
+openai_stub = types.ModuleType("openai")
+openai_stub.OpenAI = object
+sys.modules.setdefault("openai", openai_stub)
+
 rank_bm25_stub = types.ModuleType("rank_bm25")
 rank_bm25_stub.BM25Okapi = object
 sys.modules.setdefault("rank_bm25", rank_bm25_stub)
@@ -33,11 +37,11 @@ class TestModelNameProvenance(unittest.TestCase):
         response.choices = [MagicMock(message=MagicMock(content="remote answer"))]
         client = MagicMock()
         client.chat.completions.create.return_value = response
-        openai_stub = types.ModuleType("openai")
-        openai_stub.OpenAI = MagicMock(return_value=client)
+        openai_provider_stub = types.ModuleType("openai")
+        openai_provider_stub.OpenAI = MagicMock(return_value=client)
 
         with patch.object(naive_rag.config, "USE_LOCAL_MODEL", False), patch.dict(
-            sys.modules, {"openai": openai_stub}
+            sys.modules, {"openai": openai_provider_stub}
         ):
             result = rag.generate("question", ["context"])
 
