@@ -70,9 +70,16 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
         chunks = p.get("retrieved_chunks", [])
         em_scores.append(compute_em(pred_ans, gt_ans))
         f1_scores.append(compute_f1(pred_ans, gt_ans))
+        
+        # Calculate ground truth relevant pool
+        gt_chunks = gt.get("context_chunks", [])
+        total_relevant = sum(1 for c in gt_chunks if check_chunk_relevance(c, gt_ans))
+        if total_relevant == 0:
+            total_relevant = max(len(gt_chunks), 1)
+
         rel = sum(1 for c in chunks[:5] if check_chunk_relevance(c, gt_ans))
         p5_scores.append(rel / 5.0)
-        r5_scores.append(rel / 5.0)
+        r5_scores.append(min(1.0, rel / float(total_relevant)))
         latencies.append(p.get("latency_ms", 0.0))
     n = len(em_scores) or 1
     return {
