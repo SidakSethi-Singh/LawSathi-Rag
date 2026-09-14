@@ -65,7 +65,7 @@ class NaiveRAG:
             import requests
             url = f"{config.API_BASE_URL}/api/generate"
             payload = {
-                "model": "llama3.1",
+                "model": self.model_name,
                 "prompt": prompt,
                 "stream": False
             }
@@ -85,7 +85,7 @@ class NaiveRAG:
             )
             try:
                 response = client.chat.completions.create(
-                    model=config.MODEL_NAME,
+                    model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
                     max_tokens=512
