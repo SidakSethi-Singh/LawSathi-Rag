@@ -4,14 +4,13 @@ import sys
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-import pandas as pd
 from src.utils import config
 
 logger = logging.getLogger(__name__)
@@ -105,8 +104,10 @@ def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[st
         logger.warning(f"RAGAS evaluation failed or skipped: {e}")
         return {}
 
-def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path: Path) -> pd.DataFrame:
+def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path: Path) -> Any:
     """Build and save architecture comparison table rounded to 3 decimal places."""
+    import pandas as pd
+
     try:
         df = pd.DataFrame.from_dict(results, orient="index")
         df = df.round(3)
@@ -117,9 +118,10 @@ def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path:
         logger.error(f"Failed to generate comparison table: {e}")
         return pd.DataFrame()
 
-def generate_figures(df: pd.DataFrame, figures_dir: Path) -> None:
+def generate_figures(df: Any, figures_dir: Path) -> None:
     """Generate and save comparison bar charts for each metric."""
     try:
+        import pandas as pd
         import matplotlib.pyplot as plt
         figures_dir.mkdir(parents=True, exist_ok=True)
         plt.ioff()
