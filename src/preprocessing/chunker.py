@@ -17,6 +17,13 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]
     Returns:
         List[str]: Cleaned list of text chunks.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be greater than 0")
+    if overlap < 0:
+        raise ValueError("overlap must be greater than or equal to 0")
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be smaller than chunk_size")
+
     if not text.strip():
         return []
     try:
