@@ -1,3 +1,5 @@
+import os
+import tempfile
 import time
 import logging
 import json
@@ -61,12 +63,21 @@ def retry_with_backoff(func: Callable, *args: Any, max_retries: int = 3, initial
     raise RuntimeError(f"All {max_retries} attempts failed for function '{func.__name__}'.")
 
 def save_jsonl(file_path: Path, data: list[dict[str, Any]]) -> None:
-    """Save a list of dictionaries to a JSONL file."""
+    """Save a list of dictionaries to a JSONL file atomically."""
+    file_path = Path(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=file_path.parent, suffix=".tmp", prefix=".save_jsonl_"
+    )
     try:
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             for item in data:
                 f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        os.replace(tmp_path, file_path)
         logger.info(f"Successfully saved {len(data)} records to {file_path}")
-    except Exception as e:
-        logger.error(f"Failed to save JSONL file {file_path}: {e}")
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
