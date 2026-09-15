@@ -5,15 +5,15 @@ import requests
 from pathlib import Path
 from typing import Any, Callable
 from openai import OpenAI
-from .config import OPENAI_API_KEY, USE_LOCAL_MODEL, API_BASE_URL
+from .config import OPENAI_API_KEY, USE_LOCAL_MODEL, API_BASE_URL, MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
 def call_openai_api(prompt: str, system_prompt: str) -> str:
     """Call the OpenAI API for chat completion."""
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=OPENAI_API_KEY, base_url=API_BASE_URL)
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL_NAME,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
