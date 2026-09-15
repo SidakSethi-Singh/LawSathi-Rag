@@ -33,11 +33,13 @@ def load_predictions_and_ground_truth() -> Tuple[List[Dict], List[Dict], List[Di
     gt = _load_jsonl(project_root / "data" / "test.jsonl")
     return naive, dense, hybrid, gt
 
-def check_chunk_relevance(chunk: str, gt_answer: str) -> bool:
-    """Check if chunk is relevant to ground truth (contains >= 2 case-insensitive alphanumeric words)."""
-    gt_words = set(re.findall(r"\w+", gt_answer.lower()))
-    chunk_words = set(re.findall(r"\w+", chunk.lower()))
-    return len(gt_words.intersection(chunk_words)) >= 2
+def check_chunk_relevance(chunk: str, gold_contexts: List[str]) -> bool:
+    """Check whether a retrieved chunk belongs to the question's gold context."""
+    chunk_normalized = chunk.strip().lower()
+    return any(
+        chunk_normalized == context.strip().lower()
+        for context in gold_contexts
+    )
 
 def compute_em(pred: str, gt: str) -> float:
     """Compute Exact Match score (1.0 if identical after normalizations, else 0.0)."""
@@ -70,7 +72,8 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
         chunks = p.get("retrieved_chunks", [])
         em_scores.append(compute_em(pred_ans, gt_ans))
         f1_scores.append(compute_f1(pred_ans, gt_ans))
-        rel = sum(1 for c in chunks[:5] if check_chunk_relevance(c, gt_ans))
+        gold_contexts = gt.get("context_chunks", [])
+        rel = sum(1 for c in chunks[:5] if check_chunk_relevance(c, gold_contexts))
         p5_scores.append(rel / 5.0)
         r5_scores.append(rel / 5.0)
         latencies.append(p.get("latency_ms", 0.0))
