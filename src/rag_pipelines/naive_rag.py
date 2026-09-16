@@ -117,7 +117,7 @@ def run_main() -> None:
         sys.exit(1)
     if config.USE_LOCAL_MODEL:
         try:
-            requests.get(config.OLLAMA_BASE_URL, timeout=5.0)
+            requests.get(config.API_BASE_URL, timeout=5.0)
         except Exception:
             logger.error("Ollama server is offline. Please run it before execution.")
             sys.exit(1)
