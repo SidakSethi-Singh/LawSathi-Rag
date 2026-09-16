@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import json
 import logging
 from pathlib import Path
 from typing import List, Dict
@@ -11,21 +10,12 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from src.utils.helpers import save_jsonl
+from src.utils.helpers import load_jsonl, save_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
 from src.rag_pipelines.dense_rag import DenseRAG
 from src.rag_pipelines.hybrid_rag import HybridRAG
 
 logger = logging.getLogger(__name__)
-
-
-def _load_jsonl(path: Path) -> List[Dict]:
-    """Helper function to load line-delimited JSON rows into a list."""
-    if not path.exists():
-        logger.error(f"Target test file not found at: {path}")
-        sys.exit(1)
-    with open(path, "r", encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
 
 
 def get_full_corpus(records: List[Dict]) -> List[str]:
@@ -70,7 +60,7 @@ def run_architecture_benchmark(
 def main() -> None:
     """Orchestrate full evaluation run across NaiveRAG, DenseRAG, and HybridRAG."""
     test_path = project_root / "data" / "test.jsonl"
-    records = _load_jsonl(test_path)
+    records = load_jsonl(test_path)
     corpus = get_full_corpus(records)
     logger.info(f"Loaded {len(records)} test records and {len(corpus)} corpus chunks.")
     benchmarks = [
