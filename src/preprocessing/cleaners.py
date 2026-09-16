@@ -4,6 +4,14 @@ import unicodedata
 
 logger = logging.getLogger(__name__)
 
+
+def tokenize_legal_text(text: str) -> list[str]:
+    """Return case-insensitive lexical tokens without punctuation differences."""
+    if not text:
+        return []
+    return re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE)
+
+
 def strip_html_tags(text: str) -> str:
     """
     Remove all HTML tags from the input string using a regular expression.
