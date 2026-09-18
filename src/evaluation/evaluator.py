@@ -38,15 +38,17 @@ def compute_em(pred: str, gt: str) -> float:
 
 def compute_f1(pred: str, gt: str) -> float:
     """Compute Token F1 score for generated vs target answers."""
+    from collections import Counter
     p_tokens = pred.strip().lower().split()
     g_tokens = gt.strip().lower().split()
     if not p_tokens or not g_tokens:
         return 1.0 if p_tokens == g_tokens else 0.0
-    common = set(p_tokens).intersection(set(g_tokens))
-    if not common:
+    common = Counter(p_tokens) & Counter(g_tokens)
+    num_common = sum(common.values())
+    if num_common == 0:
         return 0.0
-    precision = len(common) / len(p_tokens)
-    recall = len(common) / len(g_tokens)
+    precision = num_common / len(p_tokens)
+    recall = num_common / len(g_tokens)
     return 2.0 * precision * recall / (precision + recall)
 
 def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
