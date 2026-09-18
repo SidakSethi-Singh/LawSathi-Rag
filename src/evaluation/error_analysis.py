@@ -1,3 +1,4 @@
+import re
 import sys
 import json
 import logging
@@ -14,8 +15,8 @@ if str(project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 def _tokens(text: str) -> List[str]:
-    """Return normalized whitespace-delimited tokens."""
-    return str(text or "").strip().lower().split()
+    """Return normalized alphanumeric tokens, stripping punctuation."""
+    return re.findall(r"\w+", str(text or "").lower())
 
 
 def compute_f1(pred: str, gt: str) -> float:
