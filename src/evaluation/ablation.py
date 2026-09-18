@@ -14,6 +14,7 @@ if str(project_root) not in sys.path:
 
 import pandas as pd
 from src.utils import config
+from src.evaluation import compute_f1
 from src.preprocessing.chunker import chunk_text
 from src.rag_pipelines.hybrid_rag import HybridRAG
 
@@ -31,19 +32,6 @@ def load_test_questions(test_path: Path, num_questions: int) -> List[Dict]:
         records = [json.loads(line) for line in f if line.strip()]
     random.seed(42)
     return random.sample(records, min(num_questions, len(records)))
-
-def compute_f1(pred: str, gt: str) -> float:
-    """Compute Token F1 score for generated vs target answers."""
-    p_tokens = pred.strip().lower().split()
-    g_tokens = gt.strip().lower().split()
-    if not p_tokens or not g_tokens:
-        return 1.0 if p_tokens == g_tokens else 0.0
-    common = set(p_tokens).intersection(set(g_tokens))
-    if not common:
-        return 0.0
-    precision = len(common) / len(p_tokens)
-    recall = len(common) / len(g_tokens)
-    return 2.0 * precision * recall / (precision + recall)
 
 def get_ablation_configs(run_full: bool) -> Tuple[int, List[Dict]]:
     """Return number of questions and configurations for ablation run."""
