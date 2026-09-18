@@ -11,6 +11,7 @@ load_dotenv(dotenv_path=env_path)
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 USE_LOCAL_MODEL: bool = os.getenv("USE_LOCAL_MODEL", "false").lower() == "true"
 API_BASE_URL: str = os.getenv("API_BASE_URL", "https://integrate.api.nvidia.com/v1")
+OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 MODEL_NAME: str = os.getenv("MODEL_NAME", "meta/llama-3.1-8b-instruct")
 
 # Chunking Configuration
