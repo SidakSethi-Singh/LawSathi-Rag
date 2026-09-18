@@ -96,9 +96,9 @@ class NaiveRAG:
                 raise
 
     def answer(self, query: str, k: int = 5) -> Dict:
-        """Perform retrieval and generation, tracking execution latency."""
-        contexts = self.retrieve(query, k=k)
+        """Perform retrieval and generation, tracking end-to-end execution latency."""
         start = time.perf_counter()
+        contexts = self.retrieve(query, k=k)
         predicted = self.generate(query, contexts)
         latency_ms = (time.perf_counter() - start) * 1000
         return {
