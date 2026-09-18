@@ -1,10 +1,10 @@
 import unittest
 
+from src.evaluation import compute_f1
 from src.evaluation.error_analysis import (
     build_category_summary,
     chunk_supports_answer,
     classify_failure,
-    compute_f1,
 )
 
 
