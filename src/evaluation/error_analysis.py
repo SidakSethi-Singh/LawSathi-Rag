@@ -1,3 +1,4 @@
+import re
 import sys
 import json
 import logging
@@ -14,8 +15,8 @@ if str(project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 def _tokens(text: str) -> List[str]:
-    """Return normalized whitespace-delimited tokens."""
-    return str(text or "").strip().lower().split()
+    """Return normalized alphanumeric tokens."""
+    return re.findall(r"\b\w+\b", str(text or "").lower())
 
 
 def compute_f1(pred: str, gt: str) -> float:
@@ -144,7 +145,7 @@ def save_category_summary(output_path: Path, summary: Dict[str, Dict[str, float]
 def plot_error_breakdown(output_path: Path, summary: Dict[str, Dict[str, float]]) -> None:
     """Plot the observed error-category distribution; never fabricate percentages."""
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # type: ignore
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         plt.ioff()

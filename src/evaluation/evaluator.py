@@ -4,7 +4,7 @@ import sys
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from src.utils.helpers import load_jsonl
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
@@ -76,12 +76,47 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
         "Avg Latency (ms)": sum(latencies) / n
     }
 
-def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
-    """Evaluate using RAGAS framework if possible, falling back to empty dict on failure."""
+RAGAS_METRIC_NAMES = [
+    "Faithfulness",
+    "Answer Relevancy",
+    "Context Precision",
+    "Context Recall"
+]
+
+def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, Optional[float]]:
+    """Evaluate using RAGAS framework if possible, falling back to None values on failure."""
     try:
-        from datasets import Dataset
-        from ragas import evaluate
-        from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+        from datasets import Dataset  # type: ignore
+        from ragas import evaluate  # type: ignore
+        from ragas.run_config import RunConfig  # type: ignore
+        from ragas.llms import llm_factory  # type: ignore
+        from ragas.embeddings import embedding_factory  # type: ignore
+        from openai import OpenAI
+
+        # Import metric classes with fallback for version compatibility
+        try:
+            from ragas.metrics import Faithfulness, AnswerRelevancy, ContextPrecision, ContextRecall  # type: ignore
+            metrics = [Faithfulness(), AnswerRelevancy(), ContextPrecision(), ContextRecall()]
+        except ImportError:
+            from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall  # type: ignore
+            metrics = [faithfulness, answer_relevancy, context_precision, context_recall]
+
+        client = OpenAI(
+            base_url=config.API_BASE_URL,
+            api_key=config.OPENAI_API_KEY
+        )
+
+        llm = llm_factory(config.MODEL_NAME, client=client)
+
+        embed_model_name = getattr(config, "EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+        if embed_model_name.startswith("text-embedding") or "embedding" in embed_model_name.lower():
+            embeddings = embedding_factory("openai", model=embed_model_name, client=client)
+        else:
+            from langchain_community.embeddings import HuggingFaceEmbeddings  # type: ignore
+            from ragas.embeddings import LangchainEmbeddingsWrapper  # type: ignore
+            hf_embeddings = HuggingFaceEmbeddings(model_name=embed_model_name)
+            embeddings = LangchainEmbeddingsWrapper(hf_embeddings)
+
         pred_map = {p["question"]: p for p in predictions}
         aligned_q = [g["question"] for g in ground_truth if g["question"] in pred_map]
         data = {
@@ -91,12 +126,44 @@ def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[st
             "ground_truth": [g["answer"] for g in ground_truth if g["question"] in pred_map]
         }
         dataset = Dataset.from_dict(data)
-        metrics = [faithfulness, answer_relevancy, context_precision, context_recall]
-        res = evaluate(dataset, metrics=metrics)
-        return {k: float(v) for k, v in res.items()}
-    except Exception as e:
-        logger.warning(f"RAGAS evaluation failed or skipped: {e}")
-        return {}
+
+        run_config = RunConfig(
+            max_workers=1,
+            timeout=60,
+            max_retries=3,
+            max_wait=10
+        )
+
+        res = evaluate(
+            dataset=dataset,
+            metrics=metrics,
+            llm=llm,
+            embeddings=embeddings,
+            run_config=run_config
+        )
+
+        if hasattr(res, "to_pandas"):
+            res_df = res.to_pandas()
+            metric_cols = [m.name for m in metrics if hasattr(m, "name") and m.name in res_df.columns]
+            scores = res_df[metric_cols].mean().to_dict() if metric_cols else res_df.mean(numeric_only=True).to_dict()
+        elif hasattr(res, "items"):
+            scores = dict(res.items())
+        else:
+            scores = dict(res)
+
+        mapping = {
+            "faithfulness": "Faithfulness",
+            "answer_relevancy": "Answer Relevancy",
+            "context_precision": "Context Precision",
+            "context_recall": "Context Recall"
+        }
+        return {
+            mapping.get(k, k): (float(v) if v is not None and not pd.isna(v) else None)
+            for k, v in scores.items()
+        }
+    except Exception:
+        logger.exception("RAGAS evaluation failed or skipped")
+        return {metric: None for metric in RAGAS_METRIC_NAMES}
 
 def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path: Path) -> pd.DataFrame:
     """Build and save architecture comparison table rounded to 3 decimal places."""
@@ -113,11 +180,13 @@ def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path:
 def generate_figures(df: pd.DataFrame, figures_dir: Path) -> None:
     """Generate and save comparison bar charts for each metric."""
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt  # type: ignore
         figures_dir.mkdir(parents=True, exist_ok=True)
         plt.ioff()
         for col in df.columns:
             if not pd.api.types.is_numeric_dtype(df[col]):
+                continue
+            if df[col].isna().all():
                 continue
             fig, ax = plt.subplots(figsize=(6, 4))
             colors = ["#a78bfa", "#6366f1", "#10b981"]
@@ -138,8 +207,12 @@ def generate_html_report(df: pd.DataFrame, output_path: Path) -> None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         table_html = df.to_html(classes="table", border=0)
         charts = []
+        figures_dir = project_root / "results" / "figures"
         for col in df.columns:
             san_col = col.replace(" ", "_").replace("@", "_").replace("(", "_").replace(")", "_")
+            fig_path = figures_dir / f"{san_col}.png"
+            if not fig_path.exists():
+                continue
             img_rel_path = f"../results/figures/{san_col}.png"
             charts.append(f"""
             <div class="fig-card">
@@ -148,6 +221,7 @@ def generate_html_report(df: pd.DataFrame, output_path: Path) -> None:
             </div>
             """)
         charts_html = "\n".join(charts)
+
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>

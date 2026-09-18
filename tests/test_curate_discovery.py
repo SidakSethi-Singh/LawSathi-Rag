@@ -6,7 +6,6 @@ from tempfile import TemporaryDirectory
 
 fake_dotenv = types.ModuleType("dotenv")
 fake_dotenv.load_dotenv = lambda *args, **kwargs: None
-fake_pandas = types.ModuleType("pandas")
 fake_requests = types.ModuleType("requests")
 fake_openai = types.ModuleType("openai")
 fake_openai.OpenAI = object
@@ -14,7 +13,6 @@ fake_tiktoken = types.ModuleType("tiktoken")
 fake_tqdm = types.ModuleType("tqdm")
 fake_tqdm.tqdm = lambda items, **kwargs: items
 sys.modules.setdefault("dotenv", fake_dotenv)
-sys.modules.setdefault("pandas", fake_pandas)
 sys.modules.setdefault("requests", fake_requests)
 sys.modules.setdefault("openai", fake_openai)
 sys.modules.setdefault("tiktoken", fake_tiktoken)

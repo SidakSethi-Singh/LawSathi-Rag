@@ -12,6 +12,7 @@ OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 USE_LOCAL_MODEL: bool = os.getenv("USE_LOCAL_MODEL", "false").lower() == "true"
 API_BASE_URL: str = os.getenv("API_BASE_URL", "https://integrate.api.nvidia.com/v1")
 MODEL_NAME: str = os.getenv("MODEL_NAME", "meta/llama-3.1-8b-instruct")
+EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
 
 # Chunking Configuration
 CHUNK_SIZE: int = 512
