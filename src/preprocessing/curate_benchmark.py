@@ -5,7 +5,7 @@ import random
 import logging
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -18,6 +18,46 @@ from src.preprocessing.cleaners import clean_text
 from src.preprocessing.chunker import chunk_text
 
 logger = logging.getLogger(__name__)
+
+LEGAL_METADATA_ALIASES = {
+    "case_name": ("case_name", "caseName"),
+    "court": ("court", "court_name", "courtName"),
+    "citation": ("citation", "citations", "reporter_citation", "reporter"),
+    "year": ("year", "decision_year", "judgment_year"),
+    "date": ("date", "decision_date", "judgment_date"),
+    "act": ("act", "acts", "statute", "statutes"),
+    "section": ("section", "sections", "provision", "provisions"),
+}
+
+
+def _has_metadata_value(value: Any) -> bool:
+    """Return whether a metadata value contains meaningful source information."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, dict)):
+        return bool(value)
+    return True
+
+
+def extract_legal_metadata(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract supported legal metadata without modifying source values."""
+    nested_metadata = record.get("metadata")
+    nested_metadata = nested_metadata if isinstance(nested_metadata, Mapping) else {}
+
+    metadata = {}
+    for canonical_key, aliases in LEGAL_METADATA_ALIASES.items():
+        for source in (record, nested_metadata):
+            for alias in aliases:
+                if alias in source and _has_metadata_value(source[alias]):
+                    metadata[canonical_key] = source[alias]
+                    break
+            if canonical_key in metadata:
+                break
+
+    return metadata
+
 
 def find_data_file(directory: Path) -> Path:
     """Recursively search for json, jsonl, or csv, extracting zips if found."""
@@ -101,7 +141,8 @@ def process_record(record: dict, idx: int) -> dict:
             "id": f"q_{idx:04d}",
             "question": q,
             "answer": a,
-            "context_chunks": chunks
+            "context_chunks": chunks,
+            "metadata": extract_legal_metadata(record),
         }
     except Exception as e:
         logger.warning(f"Failed to process record at index {idx}: {e}")
