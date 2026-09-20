@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class DenseRAG(NaiveRAG):
     """Dense RAG pipeline utilizing SentenceTransformers embeddings and ChromaDB vector search."""
 
-    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = config.EMBEDDING_MODEL_NAME):
         """Initialize DenseRAG pipeline, loading embed model and ephemeral ChromaDB."""
         super().__init__(model_name=model_name)
         try:
