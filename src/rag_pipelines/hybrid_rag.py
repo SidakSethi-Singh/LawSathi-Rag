@@ -32,7 +32,7 @@ def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
     max_val = max(scores.values())
     diff = max_val - min_val
     if diff == 0:
-        return {k: 1.0 for k in scores}
+        return {k: (1.0 if max_val > 0 else 0.0) for k in scores}
     return {k: (v - min_val) / diff for k, v in scores.items()}
 
 class HybridRAG(NaiveRAG):

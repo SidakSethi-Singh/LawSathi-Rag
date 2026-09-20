@@ -11,7 +11,7 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from src.utils.helpers import save_jsonl
+from src.utils.helpers import save_jsonl, load_jsonl
 from src.utils import config
 from src.rag_pipelines.naive_rag import NaiveRAG
 from src.rag_pipelines.dense_rag import DenseRAG
@@ -35,18 +35,23 @@ def _embedding_model_slug(model_name: str) -> str:
     ).strip("_")
 
 
-def _load_jsonl(path: Path) -> List[Dict]:
-    """Helper function to load line-delimited JSON rows into a list."""
-    if not path.exists():
-        logger.error(f"Target test file not found at: {path}")
-        sys.exit(1)
-    with open(path, "r", encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
-
 def get_full_corpus(records: List[Dict]) -> List[str]:
-    """Extract and deduplicate context chunks across all test records."""
-    all_chunks = [c for r in records for c in r.get("context_chunks", [])]
-    return list(set(all_chunks))
+    """Extract and stably deduplicate context chunks across all test records.
+
+    Order is preserved by first occurrence so repeated benchmark runs build the
+    retrieval corpus in the same sequence. Using set here would make corpus
+    order dependent on Python hash iteration order and can introduce avoidable
+    run-to-run variation in index construction and tie-breaking.
+    """
+    seen = set()
+    corpus = []
+    for record in records:
+        for chunk in record.get("context_chunks", []):
+            if chunk not in seen:
+                seen.add(chunk)
+                corpus.append(chunk)
+    return corpus
+
 
 def run_architecture_benchmark(
     arch_class: type,
@@ -78,18 +83,34 @@ def run_architecture_benchmark(
     logger.info(f"{label} completed in {duration:.2f} seconds.")
     save_jsonl(out_path, results)
 
+
 def main() -> None:
     """Orchestrate full evaluation run across NaiveRAG, DenseRAG, and HybridRAG."""
-    test_path = project_root / "data" / "test.jsonl"
-    records = _load_jsonl(test_path)
-    corpus = get_full_corpus(records)
-    logger.info(f"Loaded {len(records)} test records and {len(corpus)} corpus chunks.")
+    # Define the path to the benchmark file
+    benchmark_path = project_root / "data" / "test.jsonl"
+    
+    # Load the benchmark data and handle the exit condition explicitly
+    benchmark_data = load_jsonl(benchmark_path)
+    if not benchmark_data:
+        logger.error(f"Benchmark dataset missing or empty at {benchmark_path}")
+        sys.exit(1)
+
+    # Extract the deduplicated corpus using the verified dataset
+    corpus = get_full_corpus(benchmark_data)
+    logger.info(f"Loaded {len(benchmark_data)} test records and {len(corpus)} corpus chunks.")
+    
     benchmarks = [
         (NaiveRAG, "NaiveRAG", "naive_rag_full.jsonl"),
     ]
     preds_dir = project_root / "results" / "predictions"
     for arch_cls, name, filename in benchmarks:
-        run_architecture_benchmark(arch_cls, name, corpus, records, preds_dir / filename)
+        run_architecture_benchmark(
+            arch_cls,
+            name,
+            corpus,
+            benchmark_data,
+            preds_dir / filename,
+        )
 
     embedding_models = _embedding_models_for_benchmark()
     manifest = {
@@ -112,7 +133,7 @@ def main() -> None:
                 arch_cls,
                 name,
                 corpus,
-                records,
+                benchmark_data,
                 preds_dir / filename,
                 embed_model=embed_model,
             )
@@ -122,6 +143,7 @@ def main() -> None:
         [manifest],
     )
     logger.info("Full benchmark complete. Predictions saved to results/predictions/")
+
 
 if __name__ == "__main__":
     main()
