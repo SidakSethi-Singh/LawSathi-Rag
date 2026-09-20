@@ -2,8 +2,9 @@ import sys
 import types
 import unittest
 from unittest.mock import patch
+from unittest.mock import patch
 
-for module_name in ["dotenv", "pandas", "tiktoken", "tqdm"]:
+for module_name in ["dotenv", "pandas", "tiktoken", "tqdm", "openai"]:
     if module_name not in sys.modules:
         sys.modules[module_name] = types.ModuleType(module_name)
 
