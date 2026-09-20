@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Dict
 from rank_bm25 import BM25Okapi
+from openai import OpenAI
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -29,6 +30,13 @@ class NaiveRAG:
         self.use_local = USE_LOCAL_MODEL
         self.api_base_url = API_BASE_URL
         self.model_name = model_name or MODEL_NAME
+        if self.use_local:
+            self.session = requests.Session()
+        else:
+            self.client = OpenAI(
+                base_url=self.api_base_url,
+                api_key=self.openai_key
+            )
         self.chunks: List[str] = []
         self.bm25: BM25Okapi = None
 
@@ -62,15 +70,14 @@ class NaiveRAG:
         
         if config.USE_LOCAL_MODEL:
             # Ollama local path
-            import requests
-            url = f"{config.API_BASE_URL}/api/generate"
+            url = f"{self.api_base_url}/api/generate"
             payload = {
                 "model": "llama3.1",
                 "prompt": prompt,
                 "stream": False
             }
             try:
-                response = requests.post(url, json=payload, timeout=120)
+                response = self.session.post(url, json=payload, timeout=120)
                 response.raise_for_status()
                 return response.json().get("response", "")
             except Exception as e:
@@ -78,14 +85,9 @@ class NaiveRAG:
                 raise
         else:
             # NVIDIA NIM or OpenAI path
-            from openai import OpenAI
-            client = OpenAI(
-                base_url=config.API_BASE_URL,
-                api_key=config.OPENAI_API_KEY
-            )
             try:
-                response = client.chat.completions.create(
-                    model=config.MODEL_NAME,
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.1,
                     max_tokens=512
