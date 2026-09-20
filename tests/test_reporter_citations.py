@@ -2,8 +2,11 @@ import sys
 import types
 import unittest
 
-if "openai" not in sys.modules:
-    sys.modules["openai"] = types.ModuleType("openai")
+for module_name in ["dotenv", "openai"]:
+    if module_name not in sys.modules:
+        sys.modules[module_name] = types.ModuleType(module_name)
+
+sys.modules["dotenv"].load_dotenv = lambda *args, **kwargs: None
 sys.modules["openai"].OpenAI = object
 
 from src.rag_pipelines.naive_rag import NaiveRAG
