@@ -91,7 +91,8 @@ class HybridRAG(NaiveRAG):
         if not self.chunks or k <= 0:
             return []
         try:
-            limit = min(max(k, self.candidate_k), len(self.chunks))
+            candidate_k = getattr(self, "candidate_k", 20)
+            limit = min(max(k, candidate_k), len(self.chunks))
             bm25_res = self._retrieve_bm25(query, limit)
             dense_res = self._retrieve_dense(query, limit)
             norm_bm25 = min_max_normalize(bm25_res)
