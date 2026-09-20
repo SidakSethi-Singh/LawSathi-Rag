@@ -18,14 +18,14 @@ def normalize_legal_relation_operators(text: str) -> str:
     normalized = text
 
     normalized = re.sub(
-        r"(?i)\bu\s*/\s*s\.?\b\s*"
-        r"(?=(?:sections?|secs?\.?|s\.?|§)?\s*\d+)",
+        r"(?i)\bu\s*/\s*s\.?\s*(?:sections?|secs?\.?|s\.?|§)?\s*"
+        r"(?=\d+)",
         "under section ",
         normalized,
     )
     normalized = re.sub(
-        r"(?i)\br\s*/\s*w\.?\b\s*"
-        r"(?=(?:sections?|secs?\.?|s\.?|§)?\s*\d+)",
+        r"(?i)\br\s*/\s*w\.?\s*(?:sections?|secs?\.?|s\.?|§)?\s*"
+        r"(?=\d+)",
         "read with section ",
         normalized,
     )
