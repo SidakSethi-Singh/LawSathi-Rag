@@ -6,7 +6,7 @@ import logging
 import requests
 import numpy as np
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -23,6 +23,50 @@ from src.utils.helpers import save_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
 
 logger = logging.getLogger(__name__)
+
+def _coerce_metadata_value(value: Any) -> Any:
+    """Convert legal metadata into a Chroma-compatible scalar value."""
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _prepare_metadata(
+    chunks: List[str], metadatas: Optional[List[Dict[str, Any]]]
+) -> List[Dict[str, Any]]:
+    """Build validated per-chunk Chroma metadata with stable chunk identifiers."""
+    if metadatas is None:
+        metadatas = [{} for _ in chunks]
+    if len(metadatas) != len(chunks):
+        raise ValueError("metadatas must contain exactly one entry per chunk")
+
+    prepared = []
+    for index, metadata in enumerate(metadatas):
+        if metadata is None:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            raise TypeError("each metadata entry must be a dictionary")
+        item = {"chunk_id": f"chunk_{index}"}
+        for key, value in metadata.items():
+            if value is None:
+                continue
+            item[key] = _coerce_metadata_value(value)
+        prepared.append(item)
+    return prepared
+
+
+def _normalize_metadata_filter(metadata_filter: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Normalize filter values to the same scalar representation used for indexing."""
+    if not metadata_filter:
+        return None
+    return {
+        key: _coerce_metadata_value(value)
+        for key, value in metadata_filter.items()
+        if value is not None
+    }
+
 
 def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
     """Perform Min-Max normalization over a dictionary of string-to-score values."""
@@ -52,9 +96,15 @@ class HybridRAG(NaiveRAG):
             logger.error(f"Failed to initialize HybridRAG components: {e}")
             sys.exit(1)
 
-    def index_documents(self, chunks: List[str]) -> None:
-        """Index chunks in both BM25 and ChromaDB vector collection."""
+    def index_documents(
+        self,
+        chunks: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        """Index chunks in BM25 and ChromaDB with optional legal metadata."""
+        prepared_metadata = _prepare_metadata(chunks, metadatas)
         self.chunks = chunks
+        self.metadatas = prepared_metadata
         try:
             tokenized_chunks = [chunk.split() for chunk in chunks]
             self.bm25 = BM25Okapi(tokenized_chunks)
@@ -63,36 +113,78 @@ class HybridRAG(NaiveRAG):
             self.collection.add(
                 ids=chunk_ids,
                 documents=chunks,
-                embeddings=embeddings.tolist()
+                embeddings=embeddings.tolist(),
+                metadatas=prepared_metadata,
             )
         except Exception as e:
             logger.error(f"Failed to build hybrid index: {e}")
 
-    def _retrieve_bm25(self, query: str, limit: int) -> Dict[str, float]:
-        """Get top lexical matching scores."""
+    def _metadata_matches(self, chunk_index: int, metadata_filter: Optional[Dict[str, Any]]) -> bool:
+        """Return whether a chunk satisfies all requested metadata filters."""
+        if not metadata_filter:
+            return True
+        metadata = self.metadatas[chunk_index]
+        normalized_filter = _normalize_metadata_filter(metadata_filter)
+        return all(metadata.get(key) == value for key, value in normalized_filter.items())
+
+    def _retrieve_bm25(
+        self,
+        query: str,
+        limit: int,
+        metadata_filter: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, float]:
+        """Get top lexical matching scores, optionally filtered by legal metadata."""
         tokenized = query.split()
         scores = self.bm25.get_scores(tokenized)
-        top_idx = np.argsort(scores)[-limit:][::-1]
-        return {self.chunks[i]: float(scores[i]) for i in top_idx}
+        candidate_indices = [
+            index
+            for index in range(len(self.chunks))
+            if self._metadata_matches(index, metadata_filter)
+        ]
+        if not candidate_indices:
+            return {}
+        ranked_indices = sorted(
+            candidate_indices,
+            key=lambda index: float(scores[index]),
+            reverse=True,
+        )[:limit]
+        return {self.chunks[index]: float(scores[index]) for index in ranked_indices}
 
-    def _retrieve_dense(self, query: str, limit: int) -> Dict[str, float]:
-        """Get top semantic matching similarities (1 - distance)."""
+    def _retrieve_dense(
+        self,
+        query: str,
+        limit: int,
+        metadata_filter: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, float]:
+        """Get top semantic matching similarities, optionally filtered by legal metadata."""
         q_emb = self.encoder.encode([query]).tolist()
-        res = self.collection.query(query_embeddings=q_emb, n_results=limit)
+        query_kwargs = {
+            "query_embeddings": q_emb,
+            "n_results": limit,
+        }
+        normalized_filter = _normalize_metadata_filter(metadata_filter)
+        if normalized_filter is not None:
+            query_kwargs["where"] = normalized_filter
+        res = self.collection.query(**query_kwargs)
         if not res or "documents" not in res or not res["documents"] or not res["documents"][0]:
             return {}
         docs = res["documents"][0]
-        dists = res["distances"][0] if "distances" in res and res["distances"] else [0.0]*len(docs)
+        dists = res["distances"][0] if "distances" in res and res["distances"] else [0.0] * len(docs)
         return {doc: 1.0 - float(dist) for doc, dist in zip(docs, dists)}
 
-    def retrieve(self, query: str, k: int = 5) -> List[str]:
-        """Perform hybrid retrieval using combined, normalized BM25 and Dense scores."""
-        if not self.chunks:
+    def retrieve(
+        self,
+        query: str,
+        k: int = 5,
+        metadata_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
+        """Perform hybrid retrieval, optionally constrained by legal metadata."""
+        if not self.chunks or k <= 0:
             return []
         try:
             limit = min(10, len(self.chunks))
-            bm25_res = self._retrieve_bm25(query, limit)
-            dense_res = self._retrieve_dense(query, limit)
+            bm25_res = self._retrieve_bm25(query, limit, metadata_filter)
+            dense_res = self._retrieve_dense(query, limit, metadata_filter)
             norm_bm25 = min_max_normalize(bm25_res)
             norm_dense = min_max_normalize(dense_res)
             combined = {}
