@@ -59,11 +59,12 @@ def _normalize_metadata_filter(metadata_filter: Optional[Dict[str, Any]]) -> Opt
     """Normalize filter values to the same scalar representation used for indexing."""
     if not metadata_filter:
         return None
-    return {
+    normalized = {
         key: _coerce_metadata_value(value)
         for key, value in metadata_filter.items()
         if value is not None
     }
+    return normalized or None
 
 
 class DenseRAG(NaiveRAG):
