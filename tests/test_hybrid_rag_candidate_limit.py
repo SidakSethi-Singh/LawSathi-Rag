@@ -59,17 +59,17 @@ class HybridRAGCandidateLimitTests(unittest.TestCase):
     def test_candidate_limit_never_exceeds_available_corpus(self):
         rag = self._make_rag(candidate_k=20, corpus_size=7)
         rag._retrieve_bm25.return_value = {
-            f"bm25_{i}": float(i + 1) for i in range(7)
+            f"doc_{i}": float(i + 1) for i in range(7)
         }
         rag._retrieve_dense.return_value = {
-            f"dense_{i}": float(i + 1) for i in range(7)
+            f"doc_{i}": float(i + 1) for i in range(7)
         }
 
         results = rag.retrieve("query", k=20)
 
         rag._retrieve_bm25.assert_called_once_with("query", 7)
         rag._retrieve_dense.assert_called_once_with("query", 7)
-        self.assertLessEqual(len(results), 7)
+        self.assertEqual(len(results), 7)
 
     def test_non_positive_k_returns_no_results(self):
         rag = self._make_rag(candidate_k=20)
