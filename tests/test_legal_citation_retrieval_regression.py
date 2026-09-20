@@ -87,10 +87,10 @@ class LegalCitationRetrievalRegressionTests(unittest.TestCase):
 
     def test_statutory_section_positive_and_adversarial_matches(self):
         self.assert_contains_fixture("section_302", "Section 302")
-        results = self.retrieve_top("Section 302", k=3)
-        self.assertNotIn(
-            next(item for item in LEGAL_FIXTURES if item["id"] == "section_302_subsection")["text"],
-            results,
+        results = self.retrieve_top("Section 302", k=1)
+        self.assertEqual(
+            results[0],
+            next(item for item in LEGAL_FIXTURES if item["id"] == "section_302")["text"],
         )
 
     def test_subsection_reference_is_more_specific_than_sibling_clause(self):
@@ -114,12 +114,10 @@ class LegalCitationRetrievalRegressionTests(unittest.TestCase):
     def test_reporter_citation_positive_and_adversarial_matches(self):
         self.assert_contains_fixture("scc_citation", "(2019) 1 SCC 234")
         self.assert_contains_fixture("scc_citation", "SCC 234")
-        results = self.retrieve_top("SCC 234", k=3)
-        self.assertNotIn(
-            next(item for item in LEGAL_FIXTURES if item["id"] == "scc_citation")["text"].replace(
-                "(2019) 1 SCC 234", "(2019) 2 SCC 234"
-            ),
-            results,
+        results = self.retrieve_top("SCC 234", k=1)
+        self.assertEqual(
+            results[0],
+            next(item for item in LEGAL_FIXTURES if item["id"] == "scc_citation")["text"],
         )
 
     def test_case_name_positive_and_adversarial_matches(self):
