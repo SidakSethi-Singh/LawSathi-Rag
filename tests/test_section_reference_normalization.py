@@ -54,5 +54,80 @@ class TestSectionReferenceNormalization(unittest.TestCase):
         self.assertTrue(all(token_set == canonical_sets[0] for token_set in canonical_sets))
 
 
+    def test_bm25_retrieves_specific_subsection_and_clause(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "Section 302(1)(a) applies to the offence.",
+                    "Section 302(1)(b) applies to a different circumstance.",
+                ]
+            )
+
+            results = rag.retrieve("S. 302(1)(a)", k=1)
+
+            self.assertEqual(
+                results,
+                ["Section 302(1)(a) applies to the offence."],
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
+    def test_bm25_expands_small_section_ranges(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "Section 302 applies.",
+                    "Section 303 applies.",
+                    "Section 304 applies.",
+                ]
+            )
+
+            results = rag.retrieve("Sections 302-304", k=3)
+
+            self.assertEqual(
+                set(results),
+                {
+                    "Section 302 applies.",
+                    "Section 303 applies.",
+                    "Section 304 applies.",
+                },
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
 if __name__ == "__main__":
     unittest.main()
