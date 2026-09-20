@@ -52,5 +52,7 @@ def normalize_legal_relation_operators(text: str) -> str:
 
 
 def tokenize_legal_relation_text(text: str) -> list[str]:
-    """Return case-insensitive BM25 tokens after legal relation normalization."""
-    return normalize_legal_relation_operators(text).casefold().split()
+    """Return stable BM25 tokens after legal relation normalization."""
+    normalized = normalize_legal_relation_operators(text).casefold()
+    normalized = re.sub(r"(?<=\d)[.,;:]+(?=\s|$)", "", normalized)
+    return normalized.split()
