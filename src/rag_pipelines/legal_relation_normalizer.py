@@ -31,7 +31,8 @@ def normalize_legal_relation_operators(text: str) -> str:
     )
     normalized = re.sub(
         r"(?i)\bread\s+(?:and\s+)?along\s+with\s+"
-        r"(?=(?:sections?|secs?\.?|s\.?|§)?\s*\d+)",
+        r"(?:sections?|secs?\.?|s\.?|§)?\s*"
+        r"(?=\d+)",
         "read with section ",
         normalized,
     )
