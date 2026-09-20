@@ -19,6 +19,22 @@ from src.rag_pipelines.hybrid_rag import HybridRAG
 
 logger = logging.getLogger(__name__)
 
+
+def _embedding_models_for_benchmark() -> tuple[str, ...]:
+    """Return the configured embedding models for the current benchmark mode."""
+    if config.RUN_EMBEDDING_MATRIX:
+        return tuple(dict.fromkeys(config.BENCHMARK_EMBEDDING_MODELS))
+    return (config.EMBEDDING_MODEL_NAME,)
+
+
+def _embedding_model_slug(model_name: str) -> str:
+    """Convert a model identifier into a stable filesystem-safe slug."""
+    return "".join(
+        ch.lower() if ch.isalnum() else "_"
+        for ch in model_name
+    ).strip("_")
+
+
 def _load_jsonl(path: Path) -> List[Dict]:
     """Helper function to load line-delimited JSON rows into a list."""
     if not path.exists():
@@ -75,24 +91,23 @@ def main() -> None:
     for arch_cls, name, filename in benchmarks:
         run_architecture_benchmark(arch_cls, name, corpus, records, preds_dir / filename)
 
-    embedding_models = (
-        config.BENCHMARK_EMBEDDING_MODELS
-        if config.RUN_EMBEDDING_MATRIX
-        else (config.EMBEDDING_MODEL_NAME,)
-    )
+    embedding_models = _embedding_models_for_benchmark()
     manifest = {
         "embedding_models": list(embedding_models),
         "default_embedding_model": config.EMBEDDING_MODEL_NAME,
         "legal_embedding_candidate": config.LEGAL_EMBEDDING_MODEL_CANDIDATE,
         "matrix_enabled": config.RUN_EMBEDDING_MATRIX,
     }
-    for arch_cls, name in ((DenseRAG, "DenseRAG"), (HybridRAG, "HybridRAG")):
+    for arch_cls, name, legacy_filename in (
+        (DenseRAG, "DenseRAG", "dense_rag_full.jsonl"),
+        (HybridRAG, "HybridRAG", "hybrid_rag_full.jsonl"),
+    ):
         for embed_model in embedding_models:
-            slug = "".join(
-                ch.lower() if ch.isalnum() else "_"
-                for ch in embed_model
-            ).strip("_")
-            filename = f"{name.lower()}__{slug}_full.jsonl"
+            if not config.RUN_EMBEDDING_MATRIX and embed_model == config.EMBEDDING_MODEL_NAME:
+                filename = legacy_filename
+            else:
+                slug = _embedding_model_slug(embed_model)
+                filename = f"{name.lower()}__{slug}_full.jsonl"
             run_architecture_benchmark(
                 arch_cls,
                 name,
