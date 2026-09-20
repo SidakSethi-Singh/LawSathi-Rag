@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+from unittest.mock import patch
 
 for module_name in ["dotenv", "pandas", "tiktoken", "tqdm"]:
     if module_name not in sys.modules:
@@ -11,12 +12,12 @@ sys.modules["pandas"].read_csv = lambda *args, **kwargs: None
 sys.modules["tiktoken"].get_encoding = lambda *args, **kwargs: None
 sys.modules["tqdm"].tqdm = lambda iterable, **kwargs: iterable
 
-from src.preprocessing.curate_benchmark import extract_legal_metadata, process_record
+from src.preprocessing import curate_benchmark
 
 
 class TestLegalMetadataCuration(unittest.TestCase):
     def test_extracts_supported_top_level_fields_without_changing_values(self):
-        metadata = extract_legal_metadata(
+        metadata = curate_benchmark.extract_legal_metadata(
             {
                 "case_name": "A v. B",
                 "court": "Supreme Court of India",
@@ -41,7 +42,7 @@ class TestLegalMetadataCuration(unittest.TestCase):
         )
 
     def test_supports_nested_metadata_and_aliases(self):
-        metadata = extract_legal_metadata(
+        metadata = curate_benchmark.extract_legal_metadata(
             {
                 "question": "What happened?",
                 "answer": "Something.",
@@ -84,18 +85,21 @@ class TestLegalMetadataCuration(unittest.TestCase):
             "section": "302",
         }
 
-        original_metadata = {
-            "case_name": "A v. B",
-            "court": "Supreme Court of India",
-            "citation": "2024 INSC 123",
-            "year": 2024,
-            "act": "Indian Penal Code",
-            "section": "302",
-        }
-        processed = process_record(record, 7)
+        with patch.object(curate_benchmark, "chunk_text", return_value=["The court considered Section 302."]):
+            processed = curate_benchmark.process_record(record, 7)
 
         self.assertIsNotNone(processed)
-        self.assertEqual(processed["metadata"], original_metadata)
+        self.assertEqual(
+            processed["metadata"],
+            {
+                "case_name": "A v. B",
+                "court": "Supreme Court of India",
+                "citation": "2024 INSC 123",
+                "year": 2024,
+                "act": "Indian Penal Code",
+                "section": "302",
+            },
+        )
         self.assertEqual(processed["id"], "q_0007")
 
 
