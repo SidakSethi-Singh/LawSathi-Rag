@@ -30,9 +30,13 @@ class TestHybridRAGChunkIdentity(unittest.TestCase):
         )
 
     def test_dense_retrieval_uses_chroma_ids_for_duplicate_text(self):
+        class FakeEmbedding(list):
+            def tolist(self):
+                return list(self)
+
         class FakeEncoder:
             def encode(self, queries):
-                return [[0.1, 0.2]]
+                return FakeEmbedding([[0.1, 0.2]])
 
         class FakeCollection:
             def query(self, query_embeddings, n_results):
