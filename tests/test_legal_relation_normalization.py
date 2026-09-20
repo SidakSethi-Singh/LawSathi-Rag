@@ -56,5 +56,75 @@ class TestLegalRelationNormalization(unittest.TestCase):
         )
 
 
+    def test_bm25_retrieves_under_section_alias(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "The offence is punishable under section 302.",
+                    "The offence is punishable under section 304.",
+                ]
+            )
+
+            results = rag.retrieve("offence u/s 302", k=1)
+
+            self.assertEqual(
+                results,
+                ["The offence is punishable under section 302."],
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
+    def test_bm25_retrieves_read_with_alias(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "The charge is read with section 34.",
+                    "The charge is read with section 35.",
+                ]
+            )
+
+            results = rag.retrieve("charge r/w 34", k=1)
+
+            self.assertEqual(
+                results,
+                ["The charge is read with section 34."],
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
 if __name__ == "__main__":
     unittest.main()
