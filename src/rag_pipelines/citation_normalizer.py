@@ -20,13 +20,17 @@ _REPORTER_ALIASES = (
     "ilr",
 )
 
+_PARTIAL_REPORTER_ALIASES = tuple(alias for alias in _REPORTER_ALIASES if alias != "air")
 _REPORTER_PATTERN = "|".join(
     re.escape(alias) for alias in sorted(_REPORTER_ALIASES, key=len, reverse=True)
+)
+_PARTIAL_REPORTER_PATTERN = "|".join(
+    re.escape(alias) for alias in sorted(_PARTIAL_REPORTER_ALIASES, key=len, reverse=True)
 )
 
 _YEAR_FIRST_RE = re.compile(
     rf"(?<![A-Za-z0-9])"
-    rf"(?:\((?P<year_paren>18|19|20)\d{{2}}\)|(?P<year>18|19|20)\d{{2}})"
+    rf"(?:\((?P<year_paren>(?:18|19|20)\d{{2}})\)|(?P<year>(?:18|19|20)\d{{2}}))"
     rf"\s+"
     rf"(?:(?P<volume>\d+)\s+)?"
     rf"(?P<reporter>{_REPORTER_PATTERN})"
@@ -39,7 +43,7 @@ _YEAR_FIRST_RE = re.compile(
 _AIR_PATTERN_RE = re.compile(
     r"(?<![A-Za-z0-9])"
     r"(?P<reporter>air)"
-    r"\s+(?P<year>18|19|20)\d{2}"
+    r"\s+(?P<year>(?:18|19|20)\d{2})"
     r"\s+(?P<court>[A-Za-z]{2,8})"
     r"\s+(?P<page>\d+)"
     r"(?![A-Za-z0-9])",
@@ -48,7 +52,7 @@ _AIR_PATTERN_RE = re.compile(
 
 _PARTIAL_RE = re.compile(
     rf"(?<![A-Za-z0-9])"
-    rf"(?P<reporter>{_REPORTER_PATTERN})"
+    rf"(?P<reporter>{_PARTIAL_REPORTER_PATTERN})"
     rf"\s+(?P<page>\d+)"
     rf"(?![A-Za-z0-9])",
     re.IGNORECASE,
