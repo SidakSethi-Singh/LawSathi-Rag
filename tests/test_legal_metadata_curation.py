@@ -2,13 +2,13 @@ import sys
 import types
 import unittest
 from unittest.mock import patch
-from unittest.mock import patch
 
 for module_name in ["dotenv", "pandas", "tiktoken", "tqdm", "openai"]:
     if module_name not in sys.modules:
         sys.modules[module_name] = types.ModuleType(module_name)
 
 sys.modules["dotenv"].load_dotenv = lambda *args, **kwargs: None
+sys.modules["openai"].OpenAI = object
 sys.modules["pandas"].read_csv = lambda *args, **kwargs: None
 sys.modules["tiktoken"].get_encoding = lambda *args, **kwargs: None
 sys.modules["tqdm"].tqdm = lambda iterable, **kwargs: iterable
