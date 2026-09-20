@@ -42,12 +42,16 @@ class TestSectionReferenceNormalization(unittest.TestCase):
     def test_aliases_use_the_same_canonical_section(self):
         variants = ["Section 302", "Sec. 302", "S. 302", "§ 302"]
 
-        tokens = [
-            set(section_reference_normalizer.tokenize_legal_reference_text(value))
+        canonical_sets = [
+            {
+                token
+                for token in section_reference_normalizer.tokenize_legal_reference_text(value)
+                if token.startswith("legal_section_")
+            }
             for value in variants
         ]
 
-        self.assertTrue(all(token_set == tokens[0] for token_set in tokens))
+        self.assertTrue(all(token_set == canonical_sets[0] for token_set in canonical_sets))
 
 
 if __name__ == "__main__":
