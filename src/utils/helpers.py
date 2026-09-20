@@ -3,11 +3,21 @@ import logging
 import json
 import requests
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict, List
 from openai import OpenAI
 from .config import OPENAI_API_KEY, USE_LOCAL_MODEL, API_BASE_URL
 
 logger = logging.getLogger(__name__)
+
+
+def load_jsonl(path: Path) -> List[Dict[str, Any]]:
+    """Load a JSONL file and return its records as a list of dicts."""
+    path = Path(path)
+    if not path.exists():
+        logger.warning(f"File not found: {path}. Returning empty list.")
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 def call_openai_api(prompt: str, system_prompt: str) -> str:
     """Call the OpenAI API for chat completion."""

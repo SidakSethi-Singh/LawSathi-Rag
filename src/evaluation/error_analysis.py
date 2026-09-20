@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
@@ -10,15 +9,9 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-logger = logging.getLogger(__name__)
+from src.utils.helpers import load_jsonl
 
-def _load_jsonl(path: Path) -> List[Dict]:
-    """Helper function to load line-delimited JSON rows into a list."""
-    if not path.exists():
-        logger.warning(f"File not found: {path}. Returning empty list.")
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+logger = logging.getLogger(__name__)
 
 def compute_f1(pred: str, gt: str) -> float:
     """Compute Token F1 score for generated vs target answers."""
@@ -91,10 +84,10 @@ def plot_error_breakdown(output_path: Path) -> None:
 def main() -> None:
     """Main orchestrator for error cases loading, filtering, and report plotting."""
     preds_dir = project_root / "results" / "predictions"
-    naive = _load_jsonl(preds_dir / "naive_rag.jsonl")
-    dense = _load_jsonl(preds_dir / "dense_rag.jsonl")
-    hybrid = _load_jsonl(preds_dir / "hybrid_rag.jsonl")
-    gt = _load_jsonl(project_root / "data" / "test.jsonl")
+    naive = load_jsonl(preds_dir / "naive_rag.jsonl")
+    dense = load_jsonl(preds_dir / "dense_rag.jsonl")
+    hybrid = load_jsonl(preds_dir / "hybrid_rag.jsonl")
+    gt = load_jsonl(project_root / "data" / "test.jsonl")
     
     architectures = [("NaiveRAG", naive), ("DenseRAG", dense), ("HybridRAG", hybrid)]
     failures = find_failure_cases(architectures, gt, 0.3)
