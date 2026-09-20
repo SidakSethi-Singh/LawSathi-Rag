@@ -5,6 +5,7 @@ import json
 import logging
 import requests
 import numpy as np
+import re
 from pathlib import Path
 from typing import List, Dict
 from rank_bm25 import BM25Okapi
@@ -16,6 +17,7 @@ if str(project_root) not in sys.path:
 
 from src.utils import config
 from src.utils.helpers import retry_with_backoff, save_jsonl
+from src.rag_pipelines.citation_normalizer import citation_tokens, extract_reporter_citations
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +33,17 @@ class NaiveRAG:
         self.model_name = model_name or MODEL_NAME
         self.chunks: List[str] = []
         self.bm25: BM25Okapi = None
+        self.citation_metadata: List[List[Dict[str, str]]] = []
+
+    @staticmethod
+    def _tokenize_for_retrieval(text: str) -> List[str]:
+        return text.split() + citation_tokens(text)
 
     def index_documents(self, chunks: List[str]) -> None:
         """Store documents and build the BM25 index."""
         self.chunks = chunks
-        tokenized_chunks = [chunk.split() for chunk in chunks]
+        self.citation_metadata = [extract_reporter_citations(chunk) for chunk in chunks]
+        tokenized_chunks = [self._tokenize_for_retrieval(chunk) for chunk in chunks]
         self.bm25 = BM25Okapi(tokenized_chunks)
 
     def retrieve(self, query: str, k: int = 5) -> List[str]:
@@ -43,7 +51,7 @@ class NaiveRAG:
         if not self.bm25 or not self.chunks:
             logger.warning("Empty search index. Returning zero results.")
             return []
-        tokenized_query = query.split()
+        tokenized_query = self._tokenize_for_retrieval(query)
         scores = self.bm25.get_scores(tokenized_query)
         k = min(k, len(self.chunks))
         top_indices = np.argsort(scores)[-k:][::-1]
