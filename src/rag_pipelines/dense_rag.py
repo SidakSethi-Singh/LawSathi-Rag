@@ -120,9 +120,10 @@ class DenseRAG(NaiveRAG):
 
         normalized_filter = _normalize_metadata_filter(metadata_filter)
         try:
+            n_results = min(k, len(self.chunks))
             query_kwargs = {
                 "query_embeddings": self.encoder.encode([query]).tolist(),
-                "n_results": k,
+                "n_results": n_results,
             }
             if normalized_filter is not None:
                 query_kwargs["where"] = normalized_filter

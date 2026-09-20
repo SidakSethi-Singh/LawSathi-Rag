@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
+from src.utils.helpers import load_jsonl
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -16,21 +17,13 @@ from src.utils import config
 
 logger = logging.getLogger(__name__)
 
-def _load_jsonl(path: Path) -> List[Dict]:
-    """Helper function to load line-delimited JSON rows into a list."""
-    if not path.exists():
-        logger.warning(f"File not found: {path}. Returning empty list.")
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
-
 def load_predictions_and_ground_truth() -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict]]:
     """Load evaluation records from predictions JSONL files and ground truth test file."""
     preds_dir = project_root / "results" / "predictions"
-    naive = _load_jsonl(preds_dir / "naive_rag_full.jsonl")
-    dense = _load_jsonl(preds_dir / "dense_rag_full.jsonl")
-    hybrid = _load_jsonl(preds_dir / "hybrid_rag_full.jsonl")
-    gt = _load_jsonl(project_root / "data" / "test.jsonl")
+    naive = load_jsonl(preds_dir / "naive_rag_full.jsonl")
+    dense = load_jsonl(preds_dir / "dense_rag_full.jsonl")
+    hybrid = load_jsonl(preds_dir / "hybrid_rag_full.jsonl")
+    gt = load_jsonl(project_root / "data" / "test.jsonl")
     return naive, dense, hybrid, gt
 
 def check_chunk_relevance(chunk: str, gt_answer: str) -> bool:

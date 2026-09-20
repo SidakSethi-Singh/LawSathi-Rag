@@ -17,7 +17,7 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]
     Returns:
         List[str]: Cleaned list of text chunks.
     """
-    if not text.strip():
+    if not isinstance(text, str) or not text.strip():
         return []
     try:
         enc = tiktoken.get_encoding("cl100k_base")
