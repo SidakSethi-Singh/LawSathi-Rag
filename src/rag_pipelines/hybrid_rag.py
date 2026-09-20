@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import logging
+import math
 import requests
 import numpy as np
 from pathlib import Path
@@ -21,6 +22,7 @@ from rank_bm25 import BM25Okapi
 from src.utils import config
 from src.utils.helpers import save_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
+from src.rag_pipelines.citation_matcher import extract_exact_citation_signatures
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +40,13 @@ def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
 class HybridRAG(NaiveRAG):
     """Hybrid RAG pipeline combining BM25 lexical search and Dense vector search."""
 
-    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2", alpha: float = 0.7):
+    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2", alpha: float = 0.7, exact_citation_boost: float = 0.5):
         """Initialize HybridRAG pipeline, loading embed model, ChromaDB, and alpha score weight."""
         super().__init__(model_name=model_name)
         self.alpha = alpha
+        if not math.isfinite(exact_citation_boost) or exact_citation_boost < 0:
+            raise ValueError("exact_citation_boost must be a finite non-negative number")
+        self.exact_citation_boost = exact_citation_boost
         try:
             logger.info(f"HybridRAG: Loading dense encoder {embed_model} on CPU...")
             self.encoder = SentenceTransformer(embed_model)
@@ -100,6 +105,13 @@ class HybridRAG(NaiveRAG):
                 b_score = norm_bm25.get(chunk, 0.0)
                 d_score = norm_dense.get(chunk, 0.0)
                 combined[chunk] = self.alpha * d_score + (1.0 - self.alpha) * b_score
+
+            query_citations = extract_exact_citation_signatures(query)
+            if query_citations and self.exact_citation_boost:
+                for chunk in combined:
+                    if query_citations.intersection(extract_exact_citation_signatures(chunk)):
+                        combined[chunk] += self.exact_citation_boost
+
             sorted_chunks = sorted(combined.keys(), key=lambda x: combined[x], reverse=True)
             return sorted_chunks[:k]
         except Exception as e:
