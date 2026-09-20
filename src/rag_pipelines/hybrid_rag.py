@@ -38,10 +38,11 @@ def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
 class HybridRAG(NaiveRAG):
     """Hybrid RAG pipeline combining BM25 lexical search and Dense vector search."""
 
-    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2", alpha: float = 0.7):
-        """Initialize HybridRAG pipeline, loading embed model, ChromaDB, and alpha score weight."""
+    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2", alpha: float = 0.7, candidate_k: int = 20):
+        """Initialize HybridRAG pipeline, loading embed model, ChromaDB, and retrieval candidate count."""
         super().__init__(model_name=model_name)
         self.alpha = alpha
+        self.candidate_k = candidate_k
         try:
             logger.info(f"HybridRAG: Loading dense encoder {embed_model} on CPU...")
             self.encoder = SentenceTransformer(embed_model)
@@ -87,10 +88,10 @@ class HybridRAG(NaiveRAG):
 
     def retrieve(self, query: str, k: int = 5) -> List[str]:
         """Perform hybrid retrieval using combined, normalized BM25 and Dense scores."""
-        if not self.chunks:
+        if not self.chunks or k <= 0:
             return []
         try:
-            limit = min(10, len(self.chunks))
+            limit = min(max(k, self.candidate_k), len(self.chunks))
             bm25_res = self._retrieve_bm25(query, limit)
             dense_res = self._retrieve_dense(query, limit)
             norm_bm25 = min_max_normalize(bm25_res)
