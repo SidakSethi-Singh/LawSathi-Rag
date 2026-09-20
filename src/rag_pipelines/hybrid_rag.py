@@ -35,6 +35,21 @@ def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
         return {k: 1.0 for k in scores}
     return {k: (v - min_val) / diff for k, v in scores.items()}
 
+
+def calibrate_bm25_scores(scores: Dict[str, float]) -> Dict[str, float]:
+    """Map BM25 scores to [0, 1] without depending on the candidate set."""
+    if not scores:
+        return {}
+
+    calibrated = {}
+    for key, value in scores.items():
+        score = float(value)
+        if score <= 0.0:
+            calibrated[key] = 0.0
+        else:
+            calibrated[key] = score / (1.0 + score)
+    return calibrated
+
 class HybridRAG(NaiveRAG):
     """Hybrid RAG pipeline combining BM25 lexical search and Dense vector search."""
 
@@ -93,7 +108,7 @@ class HybridRAG(NaiveRAG):
             limit = min(10, len(self.chunks))
             bm25_res = self._retrieve_bm25(query, limit)
             dense_res = self._retrieve_dense(query, limit)
-            norm_bm25 = min_max_normalize(bm25_res)
+            norm_bm25 = calibrate_bm25_scores(bm25_res)
             norm_dense = min_max_normalize(dense_res)
             combined = {}
             for chunk in set(bm25_res.keys()).union(dense_res.keys()):
