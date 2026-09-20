@@ -1,7 +1,9 @@
 import time
 import logging
 import json
+import os
 import requests
+import tempfile
 from pathlib import Path
 from typing import Any, Callable, List, Dict, Union
 from openai import OpenAI
@@ -63,15 +65,32 @@ def retry_with_backoff(func: Callable, *args: Any, max_retries: int = 3, initial
     raise RuntimeError(f"All {max_retries} attempts failed for function '{func.__name__}'.")
 
 def save_jsonl(file_path: Path, data: list[dict[str, Any]]) -> None:
-    """Save a list of dictionaries to a JSONL file."""
+    """Save a list of dictionaries to a JSONL file atomically."""
+    temp_path = None
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, "w", encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=file_path.parent,
+            prefix=f".{file_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
             for item in data:
-                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+                temp_file.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+        os.replace(temp_path, file_path)
         logger.info(f"Successfully saved {len(data)} records to {file_path}")
     except Exception as e:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         logger.error(f"Failed to save JSONL file {file_path}: {e}")
+        raise
 
 def load_jsonl(path: Union[str, Path]) -> List[Dict]:
     """Helper function to load line-delimited JSON rows into a list.
