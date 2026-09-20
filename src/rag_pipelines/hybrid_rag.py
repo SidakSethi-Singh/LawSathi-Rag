@@ -38,7 +38,7 @@ def min_max_normalize(scores: Dict[str, float]) -> Dict[str, float]:
 class HybridRAG(NaiveRAG):
     """Hybrid RAG pipeline combining BM25 lexical search and Dense vector search."""
 
-    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = "all-MiniLM-L6-v2", alpha: float = 0.7):
+    def __init__(self, model_name: str = "gpt-4o-mini", embed_model: str = config.EMBEDDING_MODEL_NAME, alpha: float = 0.7):
         """Initialize HybridRAG pipeline, loading embed model, ChromaDB, and alpha score weight."""
         super().__init__(model_name=model_name)
         self.alpha = alpha
