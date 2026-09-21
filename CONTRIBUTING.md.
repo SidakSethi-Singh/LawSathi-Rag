@@ -1,0 +1,70 @@
+# Contributing to LawSathi-Rag
+
+Thanks for wanting to help! LawSathi-Rag is an open-source legal RAG project, and contributions of all sizes are welcome: bug fixes, new features, tests, docs, and evaluation work.
+
+## Before you start
+
+1. **Check existing issues and PRs** so you don't duplicate work.
+2. **Open or comment on an issue first** for anything bigger than a small fix. Wait for a maintainer to reply "go ahead" before you put in a lot of effort.
+3. **Look for `good first issue` and `help wanted` labels** if you're new.
+4. **One PR = one change.** Small, focused PRs get reviewed much faster.
+
+## Setting up locally
+
+```bash
+git clone https://github.com/SidakSethi-Singh/LawSathi-Rag.git
+cd LawSathi-Rag
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pytest
+```
+
+All tests should pass before you start changing things.
+
+## Making a change
+
+1. Fork the repo and create a branch from `main`:
+   `git checkout -b feat/short-description`
+2. Make your changes. Add or update tests for any behaviour you change.
+3. Run the test suite locally: `pytest`
+4. Commit using [Conventional Commits](https://www.conventionalcommits.org/):
+   - `feat:` new feature
+   - `fix:` bug fix
+   - `refactor:` code change with no behaviour change
+   - `docs:` documentation only
+   - `test:` tests only
+   - `chore:` / `ci:` tooling, dependencies, CI
+5. Push your branch and open a pull request against `main`. Fill in the PR template.
+
+## Pull request expectations
+
+- Link the issue it resolves (`Closes #123`).
+- Keep the diff focused. Don't mix refactors with new features.
+- Tests pass and CI is green.
+- No secrets, API keys, or large data files committed.
+- For changes to retrieval, chunking, or prompts: include a short before/after note (metrics, example queries, or benchmark output) so reviewers can judge the impact.
+- If your PR touches the same files as another open PR, mention it in the description.
+
+## Legal-domain content
+
+This project deals with legal text. Please:
+- Only use data you have the right to share (public statutes, judgments, or your own synthetic examples).
+- Never include real personal data or confidential case material.
+- Remember outputs are informational, not legal advice.
+
+## Review process
+
+- A maintainer will aim to give a first response within a few days. Feel free to give a polite nudge after a week.
+- You may be asked for changes. That's normal and not a rejection.
+- PRs with no activity for 30 days may be closed, and you're always welcome to reopen them.
+
+## Reporting bugs and suggesting features
+
+Use the issue templates. Good bug reports include steps to reproduce, expected vs. actual behaviour, and your environment (OS, Python version).
+
+## Code of conduct
+
+Be kind and respectful. Harassment or discrimination of any kind won't be tolerated.
+
+Thank you for contributing! 🙌
