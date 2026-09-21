@@ -14,7 +14,7 @@ if str(project_root) not in sys.path:
 
 import pandas as pd
 from src.utils import config
-from src.preprocessing.chunker import chunk_text
+from src.preprocessing.chunker import chunk_documents
 from src.rag_pipelines.hybrid_rag import HybridRAG
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,17 @@ def get_ablation_configs(run_full: bool) -> Tuple[int, List[Dict]]:
         ])
     return (50 if run_full else 10), configs
 
-def run_config(config_info: Dict, questions: List[Dict], corpus_text: str) -> Tuple[float, float]:
+def build_ablation_chunks(questions: List[Dict], chunk_size: int, overlap: int) -> List[str]:
+    """Chunk each source context independently so generated chunks never cross boundaries."""
+    source_documents = list(dict.fromkeys(
+        chunk
+        for question in questions
+        for chunk in question.get("context_chunks", [])
+        if chunk and chunk.strip()
+    ))
+    return chunk_documents(source_documents, chunk_size=chunk_size, overlap=overlap)
+
+def run_config(config_info: Dict, questions: List[Dict]) -> Tuple[float, float]:
     """Run evaluation for a single ablation configuration, returning avg F1 and latency."""
     name = config_info["name"]
     c_size = config_info["chunk_size"]
@@ -71,7 +81,7 @@ def run_config(config_info: Dict, questions: List[Dict], corpus_text: str) -> Tu
     top_k = config_info["top_k"]
     alpha = config_info["alpha"]
     logger.info(f"Ablation: running '{name}' (chunk_size={c_size}, top_k={top_k}, alpha={alpha})...")
-    re_chunked = chunk_text(corpus_text, chunk_size=c_size, overlap=overlap)
+    re_chunked = build_ablation_chunks(questions, chunk_size=c_size, overlap=overlap)
     rag = HybridRAG(alpha=alpha)
     rag.index_documents(re_chunked)
     f1_scores = []
@@ -111,11 +121,9 @@ def main() -> None:
     test_path = project_root / "data" / "test.jsonl"
     num_q, configs = get_ablation_configs(RUN_FULL_ABLATION)
     questions = load_test_questions(test_path, num_q)
-    all_chunks = [c for q in questions for c in q.get("context_chunks", [])]
-    corpus_text = "\n\n".join(list(set(all_chunks)))
     results = []
     for cfg in configs:
-        f1, latency = run_config(cfg, questions, corpus_text)
+        f1, latency = run_config(cfg, questions)
         results.append({
             "config_name": cfg["name"],
             "chunk_size": cfg["chunk_size"],
