@@ -73,15 +73,11 @@ def save_jsonl(file_path: Path, data: list[dict[str, Any]]) -> None:
     except Exception as e:
         logger.error(f"Failed to save JSONL file {file_path}: {e}")
 
-def load_jsonl(path: Union[str, Path]) -> List[Dict]:
-    """Helper function to load line-delimited JSON rows into a list.
 
-    Returns an empty list if the file does not exist.
-    """
-    path_obj = Path(path)
-    if not path_obj.exists():
-        logger.warning(f"File not found: {path_obj}. Returning empty list.")
+def load_jsonl(file_path: Path) -> list[dict[str, Any]]:
+    """Load non-empty JSONL records from a UTF-8 file."""
+    if not file_path.exists():
+        logger.warning(f"File not found: {file_path}. Returning empty list.")
         return []
-
-    with open(path_obj, "r", encoding="utf-8") as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]

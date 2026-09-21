@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
@@ -16,6 +15,8 @@ import pandas as pd
 from src.utils import config
 
 logger = logging.getLogger(__name__)
+
+from src.utils.helpers import load_jsonl
 
 def load_predictions_and_ground_truth() -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict]]:
     """Load evaluation records from predictions JSONL files and ground truth test file."""
