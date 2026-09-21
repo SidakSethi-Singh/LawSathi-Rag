@@ -19,6 +19,12 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]
     """
     if not isinstance(text, str) or not text.strip():
         return []
+    if chunk_size <= 0:
+        raise ValueError(f"chunk_size must be a positive integer, got {chunk_size}")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError(
+            f"overlap must be non-negative and strictly less than chunk_size ({chunk_size}), got {overlap}"
+        )
     try:
         enc = tiktoken.get_encoding("cl100k_base")
         tokens = enc.encode(text)
@@ -34,6 +40,8 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]
                 break
             start = end - overlap
         return chunks
+    except ValueError:
+        raise
     except Exception as e:
         logger.error(f"Error chunking text: {e}")
         return [text.strip()] if text.strip() else []
@@ -50,6 +58,14 @@ def chunk_documents(documents: List[str], chunk_size: int = 512, overlap: int = 
     Returns:
         List[str]: Flattened list of non-empty chunks.
     """
+    if chunk_size <= 0:
+        raise ValueError(f"chunk_size must be a positive integer, got {chunk_size}")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError(
+            f"overlap must be non-negative and strictly less than chunk_size ({chunk_size}), got {overlap}"
+        )
+    if not documents:
+        return []
     all_chunks = []
     for doc in tqdm(documents, desc="Chunking documents"):
         try:
