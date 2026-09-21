@@ -70,9 +70,10 @@ def main() -> None:
     ]
     preds_dir = project_root / "results" / "predictions"
     for arch_cls, name, filename in benchmarks:
-        run_architecture_benchmark(arch_cls, name, corpus, records, preds_dir / filename)
+        # Passed benchmark_data into the runner instead of the old records variable
+        run_architecture_benchmark(arch_cls, name, corpus, benchmark_data, preds_dir / filename)
+        
     logger.info("Full benchmark complete. Predictions saved to results/predictions/")
-
 
 if __name__ == "__main__":
     main()

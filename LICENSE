@@ -20,8 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
----
-
 Note: This repository also includes a research paper ("LawSaathi-RAG:
 A Benchmark for Comparing Retrieval-Augmented Generation Architectures on
 Indian Legal Question Answering"). The MIT License above applies to the
@@ -30,3 +28,27 @@ licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)
 — https://creativecommons.org/licenses/by/4.0/ — meaning others may share
 and adapt the paper as long as they give appropriate credit to the author
 (Sidak Singh) and indicate if changes were made.
+
+# Contributing to LawSathi-Rag
+
+Thanks for your interest in contributing! Please read this before opening a pull request.
+
+## How to Contribute
+1. Fork the repository
+2. Create a new branch for your change (`git checkout -b feature/your-feature-name`)
+3. Make your changes and commit with a clear message
+4. Push to your fork and open a pull request against `main`
+5. Describe what your PR does and why in the PR description
+
+## Code of Conduct
+Be respectful and constructive in issues, PRs, and discussions.
+
+## Licensing
+This project is licensed under the [MIT License](LICENSE).
+
+By submitting a pull request, you agree that your contribution is licensed under the same MIT License, and that you have the right to submit the code (i.e., it is your own original work or you have the right to contribute it).
+
+The research paper included in this repository ("LawSaathi-RAG: A Benchmark for Comparing Retrieval-Augmented Generation Architectures on Indian Legal Question Answering") is separately licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Any contributions to the paper text or figures fall under that license instead.
+
+## Attribution
+This project was originally created by Sidak Singh. All contributors are credited via their commit history and PRs, but original authorship and copyright remain as stated in the LICENSE file.
