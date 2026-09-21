@@ -85,26 +85,15 @@ def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[s
     }
 
 def evaluate_ragas(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
-    """Evaluate using RAGAS framework if possible, falling back to empty dict on failure."""
+    """Evaluate predictions using RagasEvaluator (Faithfulness, Answer Relevancy, Context Precision/Recall)."""
     try:
-        from datasets import Dataset
-        from ragas import evaluate
-        from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
-        pred_map = {p["question"]: p for p in predictions}
-        aligned_q = [g["question"] for g in ground_truth if g["question"] in pred_map]
-        data = {
-            "question": aligned_q,
-            "answer": [pred_map[q]["predicted_answer"] for q in aligned_q],
-            "contexts": [pred_map[q]["retrieved_chunks"] for q in aligned_q],
-            "ground_truth": [g["answer"] for g in ground_truth if g["question"] in pred_map]
-        }
-        dataset = Dataset.from_dict(data)
-        metrics = [faithfulness, answer_relevancy, context_precision, context_recall]
-        res = evaluate(dataset, metrics=metrics)
-        return {k: float(v) for k, v in res.items()}
+        from src.evaluation.ragas_evaluator import RagasEvaluator
+        evaluator = RagasEvaluator()
+        return evaluator.evaluate_predictions(predictions, ground_truth)
     except Exception as e:
-        logger.warning(f"RAGAS evaluation failed or skipped: {e}")
+        logger.warning(f"RAGAS evaluation error: {e}")
         return {}
+
 
 def generate_comparison_table(results: Dict[str, Dict[str, float]], output_path: Path) -> pd.DataFrame:
     """Build and save architecture comparison table rounded to 3 decimal places."""

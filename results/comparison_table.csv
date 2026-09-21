@@ -1,2 +1,2 @@
-,Exact Match,Token F1,Precision@5,Recall@5,Avg Latency (ms)
-CrossEncoderRAG,0.0,0.0,0.133,0.133,484.27
+,Exact Match,Token F1,Precision@5,Recall@5,Avg Latency (ms),Faithfulness,Answer Relevancy,Context Precision,Context Recall
+CrossEncoderRAG,0.0,0.0,0.133,0.133,484.27,0.467,0.0,0.222,0.112
