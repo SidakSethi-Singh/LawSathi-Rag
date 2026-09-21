@@ -6,19 +6,19 @@ logger = logging.getLogger(__name__)
 
 def strip_html_tags(text: str) -> str:
     """
-    Remove all HTML tags from the input string using a regular expression.
+    Remove all HTML tags from the input string by replacing them with a space.
     
     Args:
         text (str): The raw text potentially containing HTML markup.
         
     Returns:
-        str: Text with all HTML tags removed.
+        str: Text with all HTML tags removed and word boundaries preserved.
     """
     if not text:
         return ""
     try:
         html_regex = re.compile(r"<[^>]*>")
-        return re.sub(html_regex, "", text)
+        return re.sub(html_regex, " ", text)
     except Exception as e:
         logger.error(f"Error stripping HTML tags: {e}")
         return text
