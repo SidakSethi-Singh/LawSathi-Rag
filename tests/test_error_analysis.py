@@ -5,7 +5,11 @@ from src.evaluation.error_analysis import (
     chunk_supports_answer,
     classify_failure,
     compute_f1,
+    find_failure_cases,
+    _load_prediction_file,
 )
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 class ErrorAnalysisTests(unittest.TestCase):
@@ -63,6 +67,47 @@ class ErrorAnalysisTests(unittest.TestCase):
     def test_empty_summary_has_zero_percentages(self):
         summary = build_category_summary([])
         self.assertTrue(all(item["percentage"] == 0.0 for item in summary.values()))
+
+    def test_failure_cases_retained_across_multiple_architectures(self):
+        """Failure on the same question must be captured for each failing architecture."""
+        gt = [{"id": "q_001", "question": "What is Section 302 IPC?", "answer": "punishment for murder"}]
+        naive_preds = [
+            {"question": "What is Section 302 IPC?", "predicted_answer": "theft rules", "retrieved_chunks": []}
+        ]
+        dense_preds = [
+            {"question": "What is Section 302 IPC?", "predicted_answer": "taxation", "retrieved_chunks": []}
+        ]
+        preds_list = [("NaiveRAG", naive_preds), ("DenseRAG", dense_preds)]
+        cases = find_failure_cases(preds_list, gt, threshold=0.5)
+
+        self.assertEqual(len(cases), 2)
+        self.assertEqual(cases[0]["architecture"], "NaiveRAG")
+        self.assertEqual(cases[1]["architecture"], "DenseRAG")
+
+    def test_failure_cases_deduplicates_within_same_architecture(self):
+        """Duplicate question entries within the same architecture should not create duplicate errors."""
+        gt = [{"id": "q_001", "question": "What is Section 302 IPC?", "answer": "punishment for murder"}]
+        naive_preds = [
+            {"question": "What is Section 302 IPC?", "predicted_answer": "theft rules", "retrieved_chunks": []},
+            {"question": "What is Section 302 IPC?", "predicted_answer": "theft rules duplicate", "retrieved_chunks": []}
+        ]
+        preds_list = [("NaiveRAG", naive_preds)]
+        cases = find_failure_cases(preds_list, gt, threshold=0.5)
+
+        self.assertEqual(len(cases), 1)
+
+    def test_load_prediction_file_prefers_full_predictions(self):
+        """_load_prediction_file should load _full.jsonl if present."""
+        with TemporaryDirectory() as tmpdir:
+            preds_dir = Path(tmpdir)
+            full_file = preds_dir / "naive_rag_full.jsonl"
+            sample_file = preds_dir / "naive_rag.jsonl"
+            full_file.write_text('{"question": "q_full", "predicted_answer": "a_full"}\n', encoding="utf-8")
+            sample_file.write_text('{"question": "q_sample", "predicted_answer": "a_sample"}\n', encoding="utf-8")
+
+            res = _load_prediction_file(preds_dir, "naive_rag")
+            self.assertEqual(len(res), 1)
+            self.assertEqual(res[0]["question"], "q_full")
 
 
 if __name__ == "__main__":
