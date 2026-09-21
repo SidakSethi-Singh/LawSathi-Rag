@@ -1,4 +1,2 @@
 ,Exact Match,Token F1,Precision@5,Recall@5,Avg Latency (ms)
-NaiveRAG,0.0,0.057,0.644,0.644,3818.454
-DenseRAG,0.0,0.057,0.375,0.375,2072.249
-HybridRAG,0.0,0.057,0.516,0.516,1898.009
+CrossEncoderRAG,0.0,0.0,0.133,0.133,484.27

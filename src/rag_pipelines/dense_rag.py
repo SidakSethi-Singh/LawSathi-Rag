@@ -110,7 +110,7 @@ class DenseRAG(NaiveRAG):
                 return response.choices[0].message.content
             except Exception as e:
                 logger.error(f"API error: {e}")
-                raise
+                return f"[API Error: Unable to generate response due to model/API error - {e}]"
 
 def run_main() -> None:
     """Validate DenseRAG pipeline on 3 test records."""
