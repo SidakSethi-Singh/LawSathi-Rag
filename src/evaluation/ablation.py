@@ -14,7 +14,7 @@ if str(project_root) not in sys.path:
 
 import pandas as pd
 from src.utils import config
-from src.preprocessing.chunker import chunk_text
+from src.preprocessing.chunker import chunk_text, chunk_statutory_text
 from src.rag_pipelines.hybrid_rag import HybridRAG
 
 logger = logging.getLogger(__name__)
@@ -48,18 +48,19 @@ def compute_f1(pred: str, gt: str) -> float:
 def get_ablation_configs(run_full: bool) -> Tuple[int, List[Dict]]:
     """Return number of questions and configurations for ablation run."""
     configs = [
-        {"name": "chunk_256", "chunk_size": 256, "overlap": 50, "top_k": 5, "alpha": 0.7},
-        {"name": "chunk_512", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7},
-        {"name": "chunk_1024", "chunk_size": 1024, "overlap": 50, "top_k": 5, "alpha": 0.7},
+        {"name": "chunk_256", "chunk_size": 256, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": False},
+        {"name": "chunk_512", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": False},
+        {"name": "chunk_1024", "chunk_size": 1024, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": False},
+        {"name": "statutory_section_aware", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": True},
     ]
     if run_full:
         configs.extend([
-            {"name": "topk_3", "chunk_size": 512, "overlap": 50, "top_k": 3, "alpha": 0.7},
-            {"name": "topk_5", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7},
-            {"name": "topk_10", "chunk_size": 512, "overlap": 50, "top_k": 10, "alpha": 0.7},
-            {"name": "alpha_0.5", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.5},
-            {"name": "alpha_0.7", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7},
-            {"name": "alpha_0.9", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.9},
+            {"name": "topk_3", "chunk_size": 512, "overlap": 50, "top_k": 3, "alpha": 0.7, "use_statutory": False},
+            {"name": "topk_5", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": False},
+            {"name": "topk_10", "chunk_size": 512, "overlap": 50, "top_k": 10, "alpha": 0.7, "use_statutory": False},
+            {"name": "alpha_0.5", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.5, "use_statutory": False},
+            {"name": "alpha_0.7", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.7, "use_statutory": False},
+            {"name": "alpha_0.9", "chunk_size": 512, "overlap": 50, "top_k": 5, "alpha": 0.9, "use_statutory": False},
         ])
     return (50 if run_full else 10), configs
 
@@ -70,8 +71,13 @@ def run_config(config_info: Dict, questions: List[Dict], corpus_text: str) -> Tu
     overlap = config_info["overlap"]
     top_k = config_info["top_k"]
     alpha = config_info["alpha"]
-    logger.info(f"Ablation: running '{name}' (chunk_size={c_size}, top_k={top_k}, alpha={alpha})...")
-    re_chunked = chunk_text(corpus_text, chunk_size=c_size, overlap=overlap)
+    use_statutory = config_info.get("use_statutory", False)
+    logger.info(f"Ablation: running '{name}' (chunk_size={c_size}, top_k={top_k}, alpha={alpha}, statutory={use_statutory})...")
+    if use_statutory:
+        re_chunked = chunk_statutory_text(corpus_text, chunk_size=c_size, overlap=overlap)
+    else:
+        re_chunked = chunk_text(corpus_text, chunk_size=c_size, overlap=overlap)
+
     rag = HybridRAG(alpha=alpha)
     rag.index_documents(re_chunked)
     f1_scores = []
