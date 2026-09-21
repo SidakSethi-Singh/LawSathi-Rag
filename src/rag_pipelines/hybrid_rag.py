@@ -106,49 +106,6 @@ class HybridRAG(NaiveRAG):
             logger.error(f"Error during hybrid retrieval: {e}")
             return []
 
-    def generate(self, query: str, contexts: List[str]) -> str:
-        """Generate answer using configured API (NVIDIA NIM, OpenAI, or Ollama)."""
-        context_text = "\n\n".join(contexts)
-        prompt = (
-            "Answer the following legal question based only on the provided context. "
-            "If the answer is not in the context, say 'I cannot answer from the provided context.'\n\n"
-            f"Context:\n{context_text}\n\n"
-            f"Question: {query}\n\n"
-            "Answer:"
-        )
-        
-        if config.USE_LOCAL_MODEL:
-            import requests
-            url = f"{config.API_BASE_URL}/api/generate"
-            payload = {
-                "model": "llama3.1",
-                "prompt": prompt,
-                "stream": False
-            }
-            try:
-                response = requests.post(url, json=payload, timeout=120)
-                response.raise_for_status()
-                return response.json().get("response", "")
-            except Exception as e:
-                logger.error(f"Ollama error: {e}")
-                raise
-        else:
-            from openai import OpenAI
-            client = OpenAI(
-                base_url=config.API_BASE_URL,
-                api_key=config.OPENAI_API_KEY
-            )
-            try:
-                response = client.chat.completions.create(
-                    model=config.MODEL_NAME,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                    max_tokens=512
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                logger.error(f"API error: {e}")
-                raise
 
 def run_main() -> None:
     """Validate HybridRAG pipeline on 3 test records."""
