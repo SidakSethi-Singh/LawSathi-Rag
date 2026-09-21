@@ -41,17 +41,14 @@ class DenseRAG(NaiveRAG):
 
     def index_documents(self, chunks: List[str]) -> None:
         """Generate document embeddings and index them in ChromaDB collection."""
+        embeddings = self.encoder.encode(chunks, show_progress_bar=True)
+        chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
+        self.collection.add(
+            ids=chunk_ids,
+            documents=chunks,
+            embeddings=embeddings.tolist()
+        )
         self.chunks = chunks
-        try:
-            embeddings = self.encoder.encode(chunks, show_progress_bar=True)
-            chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
-            self.collection.add(
-                ids=chunk_ids,
-                documents=chunks,
-                embeddings=embeddings.tolist()
-            )
-        except Exception as e:
-            logger.error(f"Error during document indexing in ChromaDB: {e}")
 
     def retrieve(self, query: str, k: int = 5) -> List[str]:
         """Retrieve closest context chunks from ChromaDB for the user query."""
