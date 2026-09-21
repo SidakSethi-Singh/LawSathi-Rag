@@ -11,19 +11,35 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
-from src.utils.helpers import save_jsonl
-from src.utils.helpers import load_jsonl
+from src.utils.helpers import save_jsonl, load_jsonl
+from src.utils import config
 from src.rag_pipelines.naive_rag import NaiveRAG
 from src.rag_pipelines.dense_rag import DenseRAG
 from src.rag_pipelines.hybrid_rag import HybridRAG
 
 logger = logging.getLogger(__name__)
 
+
+def _embedding_models_for_benchmark() -> tuple[str, ...]:
+    """Return the configured embedding models for the current benchmark mode."""
+    if config.RUN_EMBEDDING_MATRIX:
+        return tuple(dict.fromkeys(config.BENCHMARK_EMBEDDING_MODELS))
+    return (config.EMBEDDING_MODEL_NAME,)
+
+
+def _embedding_model_slug(model_name: str) -> str:
+    """Convert a model identifier into a stable filesystem-safe slug."""
+    return "".join(
+        ch.lower() if ch.isalnum() else "_"
+        for ch in model_name
+    ).strip("_")
+
+
 def get_full_corpus(records: List[Dict]) -> List[str]:
     """Extract and stably deduplicate context chunks across all test records.
 
     Order is preserved by first occurrence so repeated benchmark runs build the
-    retrieval corpus in the same sequence. Using ``set`` here would make corpus
+    retrieval corpus in the same sequence. Using set here would make corpus
     order dependent on Python hash iteration order and can introduce avoidable
     run-to-run variation in index construction and tie-breaking.
     """
@@ -38,12 +54,22 @@ def get_full_corpus(records: List[Dict]) -> List[str]:
 
 
 def run_architecture_benchmark(
-    arch_class: type, name: str, corpus: List[str], records: List[Dict], out_path: Path
+    arch_class: type,
+    name: str,
+    corpus: List[str],
+    records: List[Dict],
+    out_path: Path,
+    embed_model: str | None = None,
 ) -> None:
-    """Run full benchmark for a single architecture, logging progress and saving results."""
-    logger.info(f"Starting full benchmark execution for {name}...")
+    """Run full benchmark for one architecture and optional embedding model."""
+    label = f"{name}[{embed_model}]" if embed_model else name
+    logger.info(f"Starting full benchmark execution for {label}...")
     start_time = time.perf_counter()
-    rag = arch_class()
+    rag = (
+        arch_class(embed_model=embed_model)
+        if embed_model is not None and arch_class in (DenseRAG, HybridRAG)
+        else arch_class()
+    )
     rag.index_documents(corpus)
     results = []
     total = len(records)
@@ -54,7 +80,7 @@ def run_architecture_benchmark(
             logger.info(f"{name}: {idx + 1}/{total} questions processed")
         time.sleep(2.0)
     duration = time.perf_counter() - start_time
-    logger.info(f"{name} completed in {duration:.2f} seconds.")
+    logger.info(f"{label} completed in {duration:.2f} seconds.")
     save_jsonl(out_path, results)
 
 
@@ -72,17 +98,52 @@ def main() -> None:
     # Extract the deduplicated corpus using the verified dataset
     corpus = get_full_corpus(benchmark_data)
     logger.info(f"Loaded {len(benchmark_data)} test records and {len(corpus)} corpus chunks.")
+    
     benchmarks = [
         (NaiveRAG, "NaiveRAG", "naive_rag_full.jsonl"),
-        (DenseRAG, "DenseRAG", "dense_rag_full.jsonl"),
-        (HybridRAG, "HybridRAG", "hybrid_rag_full.jsonl")
     ]
     preds_dir = project_root / "results" / "predictions"
     for arch_cls, name, filename in benchmarks:
-        # Passed benchmark_data into the runner instead of the old records variable
-        run_architecture_benchmark(arch_cls, name, corpus, benchmark_data, preds_dir / filename)
-        
+        run_architecture_benchmark(
+            arch_cls,
+            name,
+            corpus,
+            benchmark_data,
+            preds_dir / filename,
+        )
+
+    embedding_models = _embedding_models_for_benchmark()
+    manifest = {
+        "embedding_models": list(embedding_models),
+        "default_embedding_model": config.EMBEDDING_MODEL_NAME,
+        "legal_embedding_candidate": config.LEGAL_EMBEDDING_MODEL_CANDIDATE,
+        "matrix_enabled": config.RUN_EMBEDDING_MATRIX,
+    }
+    for arch_cls, name, legacy_filename in (
+        (DenseRAG, "DenseRAG", "dense_rag_full.jsonl"),
+        (HybridRAG, "HybridRAG", "hybrid_rag_full.jsonl"),
+    ):
+        for embed_model in embedding_models:
+            if not config.RUN_EMBEDDING_MATRIX and embed_model == config.EMBEDDING_MODEL_NAME:
+                filename = legacy_filename
+            else:
+                slug = _embedding_model_slug(embed_model)
+                filename = f"{name.lower()}__{slug}_full.jsonl"
+            run_architecture_benchmark(
+                arch_cls,
+                name,
+                corpus,
+                benchmark_data,
+                preds_dir / filename,
+                embed_model=embed_model,
+            )
+
+    save_jsonl(
+        project_root / "results" / "embedding_benchmark_manifest.json",
+        [manifest],
+    )
     logger.info("Full benchmark complete. Predictions saved to results/predictions/")
+
 
 if __name__ == "__main__":
     main()
