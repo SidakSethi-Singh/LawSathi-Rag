@@ -5,26 +5,34 @@ import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
-from src.utils.helpers import load_jsonl
-
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root))
 
+from src.utils.helpers import load_jsonl
 import pandas as pd
 from src.utils import config
 
+
 logger = logging.getLogger(__name__)
 
-def load_predictions_and_ground_truth() -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict]]:
+def load_predictions_and_ground_truth() -> Tuple[List[Dict], List[Dict], List[Dict], List[Dict], List[Dict]]:
     """Load evaluation records from predictions JSONL files and ground truth test file."""
     preds_dir = project_root / "results" / "predictions"
-    naive = load_jsonl(preds_dir / "naive_rag_full.jsonl")
-    dense = load_jsonl(preds_dir / "dense_rag_full.jsonl")
-    hybrid = load_jsonl(preds_dir / "hybrid_rag_full.jsonl")
+    def get_first_existing(filenames: List[str]) -> List[Dict]:
+        for fname in filenames:
+            p = preds_dir / fname
+            if p.exists():
+                return load_jsonl(p)
+        return []
+
+    naive = get_first_existing(["naive_rag_full.jsonl", "naive_rag.jsonl"])
+    dense = get_first_existing(["dense_rag_full.jsonl", "dense_rag.jsonl"])
+    hybrid = get_first_existing(["hybrid_rag_full.jsonl", "hybrid_rag.jsonl"])
+    cross_encoder = get_first_existing(["cross_encoder_rag_full.jsonl", "cross_encoder_rag.jsonl"])
     gt = load_jsonl(project_root / "data" / "test.jsonl")
-    return naive, dense, hybrid, gt
+    return naive, dense, hybrid, cross_encoder, gt
 
 def check_chunk_relevance(chunk: str, gt_answer: str) -> bool:
     """Check if chunk is relevant to ground truth (contains >= 2 case-insensitive alphanumeric words)."""
@@ -120,7 +128,7 @@ def generate_figures(df: pd.DataFrame, figures_dir: Path) -> None:
             if not pd.api.types.is_numeric_dtype(df[col]):
                 continue
             fig, ax = plt.subplots(figsize=(6, 4))
-            colors = ["#a78bfa", "#6366f1", "#10b981"]
+            colors = ["#a78bfa", "#6366f1", "#10b981", "#f59e0b"]
             df[col].plot(kind="bar", color=colors[:len(df)], ax=ax)
             ax.set_title(col, fontsize=12, fontweight="bold", pad=15)
             ax.set_ylabel("Value")
@@ -242,7 +250,7 @@ def generate_html_report(df: pd.DataFrame, output_path: Path) -> None:
     <div class="container">
         <header>
             <h1>LawSaathi-RAG Leaderboard</h1>
-            <p class="subtitle">Systematic performance comparison of Naive, Dense, and Hybrid RAG architectures on Indian Legal QA</p>
+            <p class="subtitle">Systematic performance comparison of Naive, Dense, Hybrid, and CrossEncoder RAG architectures on Indian Legal QA</p>
         </header>
         <div class="card">
             <h2>Evaluation Metrics Summary</h2>
@@ -262,9 +270,15 @@ def generate_html_report(df: pd.DataFrame, output_path: Path) -> None:
 
 def main() -> None:
     """Main orchestrator for benchmark load, evaluation, table, chart and HTML report generation."""
-    n_preds, d_preds, h_preds, gt = load_predictions_and_ground_truth()
+    n_preds, d_preds, h_preds, c_preds, gt = load_predictions_and_ground_truth()
     results = {}
-    architectures = [("NaiveRAG", n_preds), ("DenseRAG", d_preds), ("HybridRAG", h_preds)]
+    architectures = [
+        ("NaiveRAG", n_preds),
+        ("DenseRAG", d_preds),
+        ("HybridRAG", h_preds),
+        ("CrossEncoderRAG", c_preds)
+    ]
+
     for name, preds in architectures:
         if not preds:
             logger.warning(f"No predictions found for {name}. Skipping.")

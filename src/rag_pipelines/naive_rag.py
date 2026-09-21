@@ -93,7 +93,7 @@ class NaiveRAG:
                 return response.choices[0].message.content
             except Exception as e:
                 logger.error(f"API error: {e}")
-                raise
+                return f"[API Error: Unable to generate response due to model/API error - {e}]"
 
     def answer(self, query: str, k: int = 5) -> Dict:
         """Perform retrieval and generation, tracking execution latency."""
