@@ -4,6 +4,7 @@ import sys
 import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
+from src.utils.helpers import load_jsonl
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
