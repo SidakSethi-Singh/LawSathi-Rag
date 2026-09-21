@@ -16,8 +16,10 @@ from src.utils.helpers import load_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
 from src.rag_pipelines.dense_rag import DenseRAG
 from src.rag_pipelines.hybrid_rag import HybridRAG
+from src.rag_pipelines.cross_encoder_rag import CrossEncoderRAG
 
 logger = logging.getLogger(__name__)
+
 
 def get_full_corpus(records: List[Dict]) -> List[str]:
     """Extract and stably deduplicate context chunks across all test records.
@@ -75,7 +77,8 @@ def main() -> None:
     benchmarks = [
         (NaiveRAG, "NaiveRAG", "naive_rag_full.jsonl"),
         (DenseRAG, "DenseRAG", "dense_rag_full.jsonl"),
-        (HybridRAG, "HybridRAG", "hybrid_rag_full.jsonl")
+        (HybridRAG, "HybridRAG", "hybrid_rag_full.jsonl"),
+        (CrossEncoderRAG, "CrossEncoderRAG", "cross_encoder_rag_full.jsonl")
     ]
     preds_dir = project_root / "results" / "predictions"
     for arch_cls, name, filename in benchmarks:
