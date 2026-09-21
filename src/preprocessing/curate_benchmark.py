@@ -16,6 +16,7 @@ import pandas as pd
 from src.utils import config, helpers
 from src.preprocessing.cleaners import clean_text
 from src.preprocessing.chunker import chunk_text
+from src.rag_pipelines.case_name_normalizer import normalize_case_name
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,14 @@ def extract_qa_fields(record: dict) -> tuple[str, str, str]:
     logger.error(f"Keys mismatch. Available keys: {list(record.keys())}")
     raise ValueError(f"Could not map record keys to any known QA schema.")
 
+def _extract_case_name(record: dict) -> str:
+    for source in (record, record.get("metadata", {}) if isinstance(record.get("metadata"), dict) else {}):
+        for key in ("case_name", "caseName", "case_title", "caseTitle"):
+            value = source.get(key)
+            if value is not None and str(value).strip():
+                return str(value)
+    return ""
+
 def process_record(record: dict, idx: int) -> dict:
     """Clean and chunk a single record, returning structured dict or None if invalid."""
     try:
@@ -107,12 +116,16 @@ def process_record(record: dict, idx: int) -> dict:
         if not q or not a or not chunks:
             logger.warning(f"Record {idx} filtered out: empty fields after cleaning.")
             return None
-        return {
+        processed = {
             "id": f"q_{idx:04d}",
             "question": q,
             "answer": a,
-            "context_chunks": chunks
+            "context_chunks": chunks,
         }
+        case_name = _extract_case_name(record)
+        if case_name:
+            processed["case_name"] = normalize_case_name(case_name)
+        return processed
     except Exception as e:
         logger.warning(f"Failed to process record at index {idx}: {e}")
         return None
