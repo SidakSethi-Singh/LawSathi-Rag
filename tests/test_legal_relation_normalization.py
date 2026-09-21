@@ -1,0 +1,130 @@
+import unittest
+
+from src.rag_pipelines.legal_relation_normalizer import (
+    normalize_legal_relation_operators,
+    tokenize_legal_relation_text,
+)
+
+
+class TestLegalRelationNormalization(unittest.TestCase):
+    def test_under_section_aliases_share_one_form(self):
+        variants = [
+            "u/s 302",
+            "u / s 302",
+            "under section 302",
+            "under Sec. 302",
+            "under S. 302",
+            "under § 302",
+        ]
+
+        for variant in variants:
+            self.assertEqual(
+                normalize_legal_relation_operators(variant),
+                "under section 302",
+            )
+
+    def test_read_with_aliases_share_one_form(self):
+        variants = [
+            "r/w 34",
+            "r / w 34",
+            "read with section 34",
+            "read with Sec. 34",
+            "read along with section 34",
+        ]
+
+        for variant in variants:
+            self.assertEqual(
+                normalize_legal_relation_operators(variant),
+                "read with section 34",
+            )
+
+    def test_relation_operator_is_kept_distinct(self):
+        under_tokens = set(tokenize_legal_relation_text("u/s 302"))
+        read_with_tokens = set(tokenize_legal_relation_text("r/w 302"))
+
+        self.assertIn("under", under_tokens)
+        self.assertIn("section", under_tokens)
+        self.assertIn("read", read_with_tokens)
+        self.assertIn("with", read_with_tokens)
+        self.assertNotIn("under", read_with_tokens)
+
+    def test_unrelated_text_is_preserved(self):
+        text = "The court considered the evidence before deciding the application."
+        self.assertEqual(
+            normalize_legal_relation_operators(text),
+            text,
+        )
+
+
+    def test_bm25_retrieves_under_section_alias(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "The offence is punishable under section 302.",
+                    "The offence is punishable under section 304.",
+                ]
+            )
+
+            results = rag.retrieve("offence u/s 302", k=1)
+
+            self.assertEqual(
+                results,
+                ["The offence is punishable under section 302."],
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
+    def test_bm25_retrieves_read_with_alias(self):
+        import src.rag_pipelines.naive_rag as naive_rag_module
+
+        original_bm25 = naive_rag_module.BM25Okapi
+
+        class FakeBM25:
+            def __init__(self, documents):
+                self.documents = documents
+
+            def get_scores(self, query):
+                query = set(query)
+                return [
+                    float(len(query.intersection(document)))
+                    for document in self.documents
+                ]
+
+        try:
+            naive_rag_module.BM25Okapi = FakeBM25
+            rag = naive_rag_module.NaiveRAG.__new__(naive_rag_module.NaiveRAG)
+            rag.index_documents(
+                [
+                    "The charge is read with section 34.",
+                    "The charge is read with section 35.",
+                ]
+            )
+
+            results = rag.retrieve("charge r/w 34", k=1)
+
+            self.assertEqual(
+                results,
+                ["The charge is read with section 34."],
+            )
+        finally:
+            naive_rag_module.BM25Okapi = original_bm25
+
+if __name__ == "__main__":
+    unittest.main()
