@@ -21,6 +21,7 @@ from rank_bm25 import BM25Okapi
 from src.utils import config
 from src.utils.helpers import save_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
+from src.preprocessing.cleaners import tokenize_legal_text
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ class HybridRAG(NaiveRAG):
         """Index chunks in both BM25 and ChromaDB vector collection."""
         self.chunks = chunks
         try:
-            tokenized_chunks = [chunk.split() for chunk in chunks]
+            tokenized_chunks = [tokenize_legal_text(chunk) for chunk in chunks]
             self.bm25 = BM25Okapi(tokenized_chunks)
             embeddings = self.encoder.encode(chunks, show_progress_bar=True)
             chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
@@ -70,7 +71,7 @@ class HybridRAG(NaiveRAG):
 
     def _retrieve_bm25(self, query: str, limit: int) -> Dict[str, float]:
         """Get top lexical matching scores."""
-        tokenized = query.split()
+        tokenized = tokenize_legal_text(query)
         scores = self.bm25.get_scores(tokenized)
         top_idx = np.argsort(scores)[-limit:][::-1]
         return {self.chunks[i]: float(scores[i]) for i in top_idx}
