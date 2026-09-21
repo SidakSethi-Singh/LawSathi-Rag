@@ -1,3 +1,4 @@
+import re
 import sys
 import json
 import logging
@@ -14,8 +15,8 @@ if str(project_root) not in sys.path:
 logger = logging.getLogger(__name__)
 
 def _tokens(text: str) -> List[str]:
-    """Return normalized whitespace-delimited tokens."""
-    return str(text or "").strip().lower().split()
+    """Return normalized alphanumeric tokens."""
+    return re.findall(r"\w+", str(text or "").lower())
 
 
 def compute_f1(pred: str, gt: str) -> float:
@@ -81,18 +82,19 @@ def find_failure_cases(
 ) -> List[Dict]:
     """Find failure cases with F1 below threshold and attach a data-driven category."""
     failure_cases = []
-    seen_questions = set()
+    seen_cases = set()
     gt_map = {g["question"]: g for g in gt_list}
 
     for arch_name, predictions in preds_list:
         for p in predictions:
             q = p["question"]
-            if q not in gt_map or q in seen_questions:
+            case_key = (arch_name, q)
+            if q not in gt_map or case_key in seen_cases:
                 continue
             gt_rec = gt_map[q]
             f1 = compute_f1(p.get("predicted_answer", ""), gt_rec.get("answer", ""))
             if f1 < threshold:
-                seen_questions.add(q)
+                seen_cases.add(case_key)
                 case = {
                     "question_id": gt_rec.get("id", ""),
                     "question": q,
@@ -167,12 +169,20 @@ def plot_error_breakdown(output_path: Path, summary: Dict[str, Dict[str, float]]
         logger.error(f"Failed to plot error breakdown: {e}")
 
 
+def _load_prediction_file(preds_dir: Path, name: str) -> List[Dict]:
+    """Load full benchmark predictions if available, falling back to sample prediction file."""
+    full_path = preds_dir / f"{name}_full.jsonl"
+    if full_path.exists():
+        return load_jsonl(full_path)
+    return load_jsonl(preds_dir / f"{name}.jsonl")
+
+
 def main() -> None:
     """Load failures, classify them, and generate reproducible error-analysis artifacts."""
     preds_dir = project_root / "results" / "predictions"
-    naive = load_jsonl(preds_dir / "naive_rag.jsonl")
-    dense = load_jsonl(preds_dir / "dense_rag.jsonl")
-    hybrid = load_jsonl(preds_dir / "hybrid_rag.jsonl")
+    naive = _load_prediction_file(preds_dir, "naive_rag")
+    dense = _load_prediction_file(preds_dir, "dense_rag")
+    hybrid = _load_prediction_file(preds_dir, "hybrid_rag")
     gt = load_jsonl(project_root / "data" / "test.jsonl")
 
     architectures = [("NaiveRAG", naive), ("DenseRAG", dense), ("HybridRAG", hybrid)]
