@@ -5,7 +5,7 @@ import json
 import logging
 import requests
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -21,6 +21,51 @@ from src.utils.helpers import save_jsonl
 from src.rag_pipelines.naive_rag import NaiveRAG
 
 logger = logging.getLogger(__name__)
+
+def _coerce_metadata_value(value: Any) -> Any:
+    """Convert legal metadata into a Chroma-compatible scalar value."""
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+
+def _prepare_metadata(
+    chunks: List[str], metadatas: Optional[List[Dict[str, Any]]]
+) -> List[Dict[str, Any]]:
+    """Build validated per-chunk Chroma metadata with stable chunk identifiers."""
+    if metadatas is None:
+        metadatas = [{} for _ in chunks]
+    if len(metadatas) != len(chunks):
+        raise ValueError("metadatas must contain exactly one entry per chunk")
+
+    prepared = []
+    for index, metadata in enumerate(metadatas):
+        if metadata is None:
+            metadata = {}
+        if not isinstance(metadata, dict):
+            raise TypeError("each metadata entry must be a dictionary")
+        item = {"chunk_id": f"chunk_{index}"}
+        for key, value in metadata.items():
+            if value is None:
+                continue
+            item[key] = _coerce_metadata_value(value)
+        prepared.append(item)
+    return prepared
+
+
+def _normalize_metadata_filter(metadata_filter: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Normalize filter values to the same scalar representation used for indexing."""
+    if not metadata_filter:
+        return None
+    normalized = {
+        key: _coerce_metadata_value(value)
+        for key, value in metadata_filter.items()
+        if value is not None
+    }
+    return normalized or None
+
 
 class DenseRAG(NaiveRAG):
     """Dense RAG pipeline utilizing SentenceTransformers embeddings and ChromaDB vector search."""
@@ -39,29 +84,51 @@ class DenseRAG(NaiveRAG):
             logger.error(f"Failed to initialize ChromaDB or Encoder: {e}")
             sys.exit(1)
 
-    def index_documents(self, chunks: List[str]) -> None:
-        """Generate document embeddings and index them in ChromaDB collection."""
+    def index_documents(
+        self,
+        chunks: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        """Generate embeddings and persist optional legal metadata in ChromaDB."""
+        prepared_metadata = _prepare_metadata(chunks, metadatas)
         self.chunks = chunks
+        self.metadatas = prepared_metadata
+        if not chunks:
+            return
         try:
             embeddings = self.encoder.encode(chunks, show_progress_bar=True)
             chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
             self.collection.add(
                 ids=chunk_ids,
                 documents=chunks,
-                embeddings=embeddings.tolist()
+                embeddings=embeddings.tolist(),
+                metadatas=prepared_metadata,
             )
         except Exception as e:
             logger.error(f"Error during document indexing in ChromaDB: {e}")
 
-    def retrieve(self, query: str, k: int = 5) -> List[str]:
-        """Retrieve closest context chunks from ChromaDB for the user query."""
-        if not self.chunks:
-            logger.warning("Empty dense index. Returning zero results.")
+    def retrieve(
+        self,
+        query: str,
+        k: int = 5,
+        metadata_filter: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
+        """Retrieve context chunks, optionally constrained by legal metadata."""
+        if not self.chunks or k <= 0:
+            logger.warning("Empty dense index or non-positive result count. Returning zero results.")
             return []
+
+        normalized_filter = _normalize_metadata_filter(metadata_filter)
         try:
             n_results = min(k, len(self.chunks))
-            q_emb = self.encoder.encode([query]).tolist()
-            results = self.collection.query(query_embeddings=q_emb, n_results=n_results)
+            query_kwargs = {
+                "query_embeddings": self.encoder.encode([query]).tolist(),
+                "n_results": n_results,
+            }
+            if normalized_filter is not None:
+                query_kwargs["where"] = normalized_filter
+
+            results = self.collection.query(**query_kwargs)
             if results and "documents" in results and results["documents"]:
                 return results["documents"][0]
         except Exception as e:
