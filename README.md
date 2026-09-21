@@ -137,8 +137,11 @@ python src/evaluation/error_analysis.py
 python src/evaluation/ablation.py
 ```
 
-To view the leaderboard in your browser:
-Open `demo/index.html` in any web browser.
+To view the interactive leaderboard and live QA playground in your browser:
+```bash
+streamlit run demo/app.py
+```
+Or open static report `demo/index.html` in any web browser.
 
 ---
 
@@ -146,11 +149,13 @@ Open `demo/index.html` in any web browser.
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on setting up your development environment, coding standards, and submitting pull requests.
 
-Potential areas for contribution:
-- [ ] Integration of Cross-Encoder Rerankers (e.g. `BAAI/bge-reranker-base`).
-- [ ] Statutory section-aware chunking for Indian Penal Code and Constitution articles.
-- [ ] Interactive query CLI and Streamlit/Gradio web demo.
-- [ ] RAGAS evaluation metrics integration.
+Completed architecture & benchmark enhancements:
+- [x] Integration of Cross-Encoder Rerankers (e.g. `BAAI/bge-reranker-base`).
+- [x] Statutory section-aware chunking for Indian Penal Code and Constitution articles.
+- [x] Legal query expansion and HyDE (Hypothetical Document Embeddings) strategy.
+- [x] RAGAS evaluation metrics integration.
+- [x] Interactive Streamlit web demo & real-time playground (`demo/app.py`).
+
 
 ---
 

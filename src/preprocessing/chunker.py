@@ -3,7 +3,10 @@ from typing import List
 import tiktoken
 from tqdm import tqdm
 
+from src.preprocessing.statutory_chunker import StatutoryLegalChunker, chunk_statutory_text
+
 logger = logging.getLogger(__name__)
+
 
 def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[str]:
     """
