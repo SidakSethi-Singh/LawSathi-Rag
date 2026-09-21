@@ -53,20 +53,27 @@ class DenseRAG(NaiveRAG):
         except Exception as e:
             logger.error(f"Error during document indexing in ChromaDB: {e}")
 
-    def retrieve(self, query: str, k: int = 5) -> List[str]:
-        """Retrieve closest context chunks from ChromaDB for the user query."""
+    def retrieve(self, query: str, k: int = 5, use_hyde: bool = False) -> List[str]:
+        """Retrieve closest context chunks from ChromaDB for the user query, optionally using HyDE expansion."""
         if not self.chunks:
             logger.warning("Empty dense index. Returning zero results.")
             return []
         try:
+            target_query = query
+            if use_hyde:
+                from src.rag_pipelines.query_expansion import LegalQueryExpander
+                expander = LegalQueryExpander()
+                target_query = expander.generate_hyde_document(query)
+
             n_results = min(k, len(self.chunks))
-            q_emb = self.encoder.encode([query]).tolist()
+            q_emb = self.encoder.encode([target_query]).tolist()
             results = self.collection.query(query_embeddings=q_emb, n_results=n_results)
             if results and "documents" in results and results["documents"]:
                 return results["documents"][0]
         except Exception as e:
             logger.error(f"Error querying ChromaDB collection: {e}")
         return []
+
 
     def generate(self, query: str, contexts: List[str]) -> str:
         """Generate answer using configured API (NVIDIA NIM, OpenAI, or Ollama)."""
@@ -110,7 +117,7 @@ class DenseRAG(NaiveRAG):
                 return response.choices[0].message.content
             except Exception as e:
                 logger.error(f"API error: {e}")
-                raise
+                return f"[API Error: Unable to generate response due to model/API error - {e}]"
 
 def run_main() -> None:
     """Validate DenseRAG pipeline on 3 test records."""

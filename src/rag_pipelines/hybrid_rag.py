@@ -85,14 +85,23 @@ class HybridRAG(NaiveRAG):
         dists = res["distances"][0] if "distances" in res and res["distances"] else [0.0]*len(docs)
         return {doc: 1.0 - float(dist) for doc, dist in zip(docs, dists)}
 
-    def retrieve(self, query: str, k: int = 5) -> List[str]:
-        """Perform hybrid retrieval using combined, normalized BM25 and Dense scores."""
+    def retrieve(self, query: str, k: int = 5, use_hyde: bool = False) -> List[str]:
+        """Perform hybrid retrieval using combined, normalized BM25 and Dense scores with optional HyDE expansion."""
         if not self.chunks:
             return []
         try:
+            bm25_query = query
+            dense_query = query
+            if use_hyde:
+                from src.rag_pipelines.query_expansion import LegalQueryExpander
+                expander = LegalQueryExpander()
+                expanded = expander.expand_query(query, use_hyde=True)
+                bm25_query = expanded["bm25_query"]
+                dense_query = expanded["vector_query"]
+
             limit = min(10, len(self.chunks))
-            bm25_res = self._retrieve_bm25(query, limit)
-            dense_res = self._retrieve_dense(query, limit)
+            bm25_res = self._retrieve_bm25(bm25_query, limit)
+            dense_res = self._retrieve_dense(dense_query, limit)
             norm_bm25 = min_max_normalize(bm25_res)
             norm_dense = min_max_normalize(dense_res)
             combined = {}
@@ -105,6 +114,7 @@ class HybridRAG(NaiveRAG):
         except Exception as e:
             logger.error(f"Error during hybrid retrieval: {e}")
             return []
+
 
     def generate(self, query: str, contexts: List[str]) -> str:
         """Generate answer using configured API (NVIDIA NIM, OpenAI, or Ollama)."""
@@ -148,7 +158,7 @@ class HybridRAG(NaiveRAG):
                 return response.choices[0].message.content
             except Exception as e:
                 logger.error(f"API error: {e}")
-                raise
+                return f"[API Error: Unable to generate response due to model/API error - {e}]"
 
 def run_main() -> None:
     """Validate HybridRAG pipeline on 3 test records."""
