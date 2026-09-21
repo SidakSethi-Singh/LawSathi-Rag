@@ -16,6 +16,7 @@ import pandas as pd
 from src.utils import config, helpers
 from src.preprocessing.cleaners import clean_text
 from src.preprocessing.chunker import chunk_text
+from src.preprocessing.court_normalizer import extract_court_name
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ def extract_qa_fields(record: dict) -> tuple[str, str, str]:
         if q_key in record and a_key in record and c_key in record:
             return record[q_key], record[a_key], record[c_key]
     logger.error(f"Keys mismatch. Available keys: {list(record.keys())}")
-    raise ValueError(f"Could not map record keys to any known QA schema.")
+    raise ValueError("Could not map record keys to any known QA schema.")
 
 def process_record(record: dict, idx: int) -> dict:
     """Clean and chunk a single record, returning structured dict or None if invalid."""
@@ -107,12 +108,16 @@ def process_record(record: dict, idx: int) -> dict:
         if not q or not a or not chunks:
             logger.warning(f"Record {idx} filtered out: empty fields after cleaning.")
             return None
-        return {
+        processed = {
             "id": f"q_{idx:04d}",
             "question": q,
             "answer": a,
-            "context_chunks": chunks
+            "context_chunks": chunks,
         }
+        court = extract_court_name(record)
+        if court:
+            processed["court"] = court
+        return processed
     except Exception as e:
         logger.warning(f"Failed to process record at index {idx}: {e}")
         return None
