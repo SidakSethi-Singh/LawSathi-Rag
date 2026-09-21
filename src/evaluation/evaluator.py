@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Tuple
 from src.utils.helpers import load_jsonl
+from src.evaluation import compute_f1
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -35,19 +36,6 @@ def check_chunk_relevance(chunk: str, gt_answer: str) -> bool:
 def compute_em(pred: str, gt: str) -> float:
     """Compute Exact Match score (1.0 if identical after normalizations, else 0.0)."""
     return 1.0 if pred.strip().lower() == gt.strip().lower() else 0.0
-
-def compute_f1(pred: str, gt: str) -> float:
-    """Compute Token F1 score for generated vs target answers."""
-    p_tokens = pred.strip().lower().split()
-    g_tokens = gt.strip().lower().split()
-    if not p_tokens or not g_tokens:
-        return 1.0 if p_tokens == g_tokens else 0.0
-    common = set(p_tokens).intersection(set(g_tokens))
-    if not common:
-        return 0.0
-    precision = len(common) / len(p_tokens)
-    recall = len(common) / len(g_tokens)
-    return 2.0 * precision * recall / (precision + recall)
 
 def evaluate_custom(predictions: List[Dict], ground_truth: List[Dict]) -> Dict[str, float]:
     """Compute custom metrics (EM, Token F1, Precision@5, Recall@5, and Avg Latency)."""
