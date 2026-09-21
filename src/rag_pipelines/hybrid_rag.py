@@ -6,7 +6,8 @@ import logging
 import requests
 import numpy as np
 from pathlib import Path
-from typing import List, Dict
+from collections import defaultdict
+from typing import List, Dict, DefaultDict
 
 # Ensure project root is in sys.path to resolve src.* imports cross-platform
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -68,26 +69,67 @@ class HybridRAG(NaiveRAG):
         except Exception as e:
             logger.error(f"Failed to build hybrid index: {e}")
 
-    def _retrieve_bm25(self, query: str, limit: int) -> Dict[str, float]:
-        """Get top lexical matching scores."""
+    def _retrieve_bm25(self, query: str, limit: int) -> Dict[int, float]:
+        """Get top lexical matching scores keyed by stable chunk index."""
         tokenized = query.split()
         scores = self.bm25.get_scores(tokenized)
         top_idx = np.argsort(scores)[-limit:][::-1]
-        return {self.chunks[i]: float(scores[i]) for i in top_idx}
+        return {int(i): float(scores[i]) for i in top_idx}
 
-    def _retrieve_dense(self, query: str, limit: int) -> Dict[str, float]:
-        """Get top semantic matching similarities (1 - distance)."""
+    def _resolve_dense_chunk_ids(self, documents: List[str], identifiers: List[str]) -> List[int]:
+        """Resolve Chroma IDs to stable integer indexes, with a duplicate-safe fallback."""
+        if len(identifiers) == len(documents):
+            resolved = []
+            for identifier in identifiers:
+                try:
+                    prefix, value = str(identifier).rsplit("_", 1)
+                    if prefix == "chunk":
+                        resolved.append(int(value))
+                        continue
+                except (TypeError, ValueError):
+                    pass
+                resolved.append(-1)
+            if all(index >= 0 for index in resolved):
+                return resolved
+
+        positions: DefaultDict[str, List[int]] = defaultdict(list)
+        for index, chunk in enumerate(self.chunks):
+            positions[chunk].append(index)
+
+        resolved = []
+        for document in documents:
+            candidates = positions.get(document)
+            if not candidates:
+                resolved.append(-1)
+                continue
+            resolved.append(candidates.pop(0))
+        return resolved
+
+    def _retrieve_dense(self, query: str, limit: int) -> Dict[int, float]:
+        """Get top semantic matching similarities keyed by stable chunk index."""
         q_emb = self.encoder.encode([query]).tolist()
         res = self.collection.query(query_embeddings=q_emb, n_results=limit)
         if not res or "documents" not in res or not res["documents"] or not res["documents"][0]:
             return {}
+
         docs = res["documents"][0]
-        dists = res["distances"][0] if "distances" in res and res["distances"] else [0.0]*len(docs)
-        return {doc: 1.0 - float(dist) for doc, dist in zip(docs, dists)}
+        distances = (
+            res["distances"][0]
+            if "distances" in res and res["distances"]
+            else [0.0] * len(docs)
+        )
+        identifiers = res["ids"][0] if "ids" in res and res["ids"] else []
+        chunk_ids = self._resolve_dense_chunk_ids(docs, identifiers)
+
+        return {
+            chunk_id: 1.0 - float(distance)
+            for chunk_id, distance in zip(chunk_ids, distances)
+            if chunk_id >= 0
+        }
 
     def retrieve(self, query: str, k: int = 5) -> List[str]:
         """Perform hybrid retrieval using combined, normalized BM25 and Dense scores."""
-        if not self.chunks:
+        if not self.chunks or k <= 0:
             return []
         try:
             limit = min(10, len(self.chunks))
@@ -96,12 +138,15 @@ class HybridRAG(NaiveRAG):
             norm_bm25 = min_max_normalize(bm25_res)
             norm_dense = min_max_normalize(dense_res)
             combined = {}
-            for chunk in set(bm25_res.keys()).union(dense_res.keys()):
-                b_score = norm_bm25.get(chunk, 0.0)
-                d_score = norm_dense.get(chunk, 0.0)
-                combined[chunk] = self.alpha * d_score + (1.0 - self.alpha) * b_score
-            sorted_chunks = sorted(combined.keys(), key=lambda x: combined[x], reverse=True)
-            return sorted_chunks[:k]
+            for chunk_id in set(bm25_res.keys()).union(dense_res.keys()):
+                b_score = norm_bm25.get(chunk_id, 0.0)
+                d_score = norm_dense.get(chunk_id, 0.0)
+                combined[chunk_id] = self.alpha * d_score + (1.0 - self.alpha) * b_score
+            sorted_chunk_ids = sorted(
+                combined.keys(),
+                key=lambda chunk_id: (-combined[chunk_id], chunk_id),
+            )
+            return [self.chunks[chunk_id] for chunk_id in sorted_chunk_ids[:k]]
         except Exception as e:
             logger.error(f"Error during hybrid retrieval: {e}")
             return []
