@@ -52,18 +52,30 @@ class HybridRAG(NaiveRAG):
             logger.error(f"Failed to initialize HybridRAG components: {e}")
             sys.exit(1)
 
+    CHROMA_BATCH_SIZE: int = 500
+
     def index_documents(self, chunks: List[str]) -> None:
         """Index chunks in both BM25 and ChromaDB vector collection."""
         self.chunks = chunks
+        if not chunks:
+            logger.warning("index_documents called with empty chunk list.")
+            return
         try:
             tokenized_chunks = [chunk.split() for chunk in chunks]
             self.bm25 = BM25Okapi(tokenized_chunks)
             embeddings = self.encoder.encode(chunks, show_progress_bar=True)
             chunk_ids = [f"chunk_{i}" for i in range(len(chunks))]
-            self.collection.add(
-                ids=chunk_ids,
-                documents=chunks,
-                embeddings=embeddings.tolist()
+            batch_size = self.CHROMA_BATCH_SIZE
+            for start in range(0, len(chunks), batch_size):
+                end = start + batch_size
+                self.collection.add(
+                    ids=chunk_ids[start:end],
+                    documents=chunks[start:end],
+                    embeddings=embeddings[start:end].tolist(),
+                )
+            logger.info(
+                f"HybridRAG: indexed {len(chunks)} chunks in "
+                f"{(len(chunks) + batch_size - 1) // batch_size} batch(es)."
             )
         except Exception as e:
             logger.error(f"Failed to build hybrid index: {e}")
