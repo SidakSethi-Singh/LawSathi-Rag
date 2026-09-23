@@ -109,6 +109,66 @@ class NaiveRAG:
             "model_used": self.model_name
         }
 
+    async def a_generate(self, query: str, contexts: List[str]) -> str:
+        """Asynchronously generate answer using configured API."""
+        context_text = "\n\n".join(contexts)
+        prompt = (
+            "Answer the following legal question based only on the provided context. "
+            "If the answer is not in the context, say 'I cannot answer from the provided context.'\n\n"
+            f"Context:\n{context_text}\n\n"
+            f"Question: {query}\n\n"
+            "Answer:"
+        )
+        
+        if config.USE_LOCAL_MODEL:
+            import aiohttp
+            url = f"{config.API_BASE_URL}/api/generate"
+            payload = {
+                "model": "llama3.1",
+                "prompt": prompt,
+                "stream": False
+            }
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=payload, timeout=120) as response:
+                        response.raise_for_status()
+                        data = await response.json()
+                        return data.get("response", "")
+            except Exception as e:
+                logger.error(f"Ollama async error: {e}")
+                raise
+        else:
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(
+                base_url=config.API_BASE_URL,
+                api_key=config.OPENAI_API_KEY
+            )
+            try:
+                response = await client.chat.completions.create(
+                    model=config.MODEL_NAME,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1,
+                    max_tokens=512
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                logger.error(f"Async API error: {e}")
+                raise
+
+    async def a_answer(self, query: str, k: int = 5) -> Dict:
+        """Perform retrieval (sync) and generation (async), tracking execution latency."""
+        contexts = self.retrieve(query, k=k)
+        start = time.perf_counter()
+        predicted = await self.a_generate(query, contexts)
+        latency_ms = (time.perf_counter() - start) * 1000
+        return {
+            "question": query,
+            "predicted_answer": predicted,
+            "retrieved_chunks": contexts,
+            "latency_ms": round(latency_ms, 2),
+            "model_used": self.model_name
+        }
+
 def run_main() -> None:
     """Validate pipeline on 3 records from test file."""
     test_path = project_root / "data" / "test.jsonl"

@@ -37,26 +37,28 @@ def get_full_corpus(records: List[Dict]) -> List[str]:
     return corpus
 
 
-def run_architecture_benchmark(
+import asyncio
+
+async def _process_record(rag, rec: Dict, sem: asyncio.Semaphore) -> Dict:
+    async with sem:
+        return await rag.a_answer(rec["question"])
+
+async def a_run_architecture_benchmark(
     arch_class: type, name: str, corpus: List[str], records: List[Dict], out_path: Path
 ) -> None:
-    """Run full benchmark for a single architecture, logging progress and saving results."""
-    logger.info(f"Starting full benchmark execution for {name}...")
+    """Run full benchmark for a single architecture concurrently."""
+    logger.info(f"Starting full benchmark execution for {name} (Async)...")
     start_time = time.perf_counter()
     rag = arch_class()
     rag.index_documents(corpus)
-    results = []
-    total = len(records)
-    for idx, rec in enumerate(records):
-        ans = rag.answer(rec["question"])
-        results.append(ans)
-        if (idx + 1) % 10 == 0 or (idx + 1) == total:
-            logger.info(f"{name}: {idx + 1}/{total} questions processed")
-        time.sleep(2.0)
+    
+    sem = asyncio.Semaphore(5)  # Bounded concurrency
+    tasks = [_process_record(rag, rec, sem) for rec in records]
+    results = await asyncio.gather(*tasks)
+    
     duration = time.perf_counter() - start_time
     logger.info(f"{name} completed in {duration:.2f} seconds.")
     save_jsonl(out_path, results)
-
 
 def main() -> None:
     """Orchestrate full evaluation run across NaiveRAG, DenseRAG, and HybridRAG."""
@@ -79,8 +81,7 @@ def main() -> None:
     ]
     preds_dir = project_root / "results" / "predictions"
     for arch_cls, name, filename in benchmarks:
-        # Passed benchmark_data into the runner instead of the old records variable
-        run_architecture_benchmark(arch_cls, name, corpus, benchmark_data, preds_dir / filename)
+        asyncio.run(a_run_architecture_benchmark(arch_cls, name, corpus, benchmark_data, preds_dir / filename))
         
     logger.info("Full benchmark complete. Predictions saved to results/predictions/")
 
